@@ -250,6 +250,7 @@ export default function ChatPage({
                 content={msg.content}
                 figureName={figure.name}
                 figureGradient={figure.gradient}
+                figurePortrait={figure.portrait}
               />
             </motion.div>
           ))}
@@ -264,6 +265,7 @@ export default function ChatPage({
                 content={streamingContent}
                 figureName={figure.name}
                 figureGradient={figure.gradient}
+                figurePortrait={figure.portrait}
                 isStreaming
               />
             </motion.div>

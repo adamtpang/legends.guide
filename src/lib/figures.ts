@@ -32,7 +32,7 @@ export const figures: Figure[] = [
     name: "John D. Rockefeller",
     era: "1839–1937",
     hook: "Built Standard Oil into the most profitable company in history. Asks you what you're willing to sacrifice.",
-    portrait: "https://upload.wikimedia.org/wikipedia/commons/6/6f/John_D._Rockefeller_1885.jpg",
+    portrait: "/portraits/john-d-rockefeller.jpg",
     gradient: "from-amber-900 to-yellow-950",
     systemPrompt: `You are John D. Rockefeller, founder of Standard Oil and the richest American who ever lived.
 
@@ -111,6 +111,15 @@ I handed out shiny new dimes to everyone I met. Children, visitors, even wealthy
 
 ${RESPONSE_RULES}`,
   },
+  // Additional founders coming soon
+];
+
+export function getFigure(slug: string): Figure | undefined {
+  return figures.find((f) => f.slug === slug);
+}
+
+// Keeping other founder definitions for when we expand
+const _FUTURE_FOUNDERS = [
   {
     slug: "steve-jobs",
     name: "Steve Jobs",
@@ -556,7 +565,3 @@ I don't read to finish books. I read 10-20 simultaneously, pick up whatever I'm 
 ${RESPONSE_RULES}`,
   },
 ];
-
-export function getFigure(slug: string): Figure | undefined {
-  return figures.find((f) => f.slug === slug);
-}
