@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { figures } from "@/lib/figures";
 import Link from "next/link";
+import { motion } from "framer-motion";
 
 interface CompareResponse {
   content: string;
@@ -81,7 +82,7 @@ function ResponsePanel({
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-3 mb-4">
         <div
-          className={`w-10 h-10 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/50 text-sm font-serif shrink-0`}
+          className={`w-10 h-10 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/40 text-sm font-serif shrink-0 ring-1 ring-white/10`}
         >
           {figure.name
             .split(" ")
@@ -89,50 +90,60 @@ function ResponsePanel({
             .join("")}
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">{figure.name}</h3>
-          <p className="text-xs text-zinc-600">{figure.era}</p>
+          <h3 className="text-sm font-serif font-medium text-parchment-50">
+            {figure.name}
+          </h3>
+          <p className="text-[10px] text-gold-500/50 tracking-wider uppercase">
+            {figure.era}
+          </p>
         </div>
       </div>
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-5 min-h-[200px]">
+      <div className="bg-ink-900/40 border border-ink-700/30 rounded-xl p-6 min-h-[200px]">
         {response.content ? (
           <>
-            <div className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
+            <div className="text-[14px] text-parchment-200/90 leading-[1.8] whitespace-pre-wrap">
               {body}
               {response.isStreaming && (
-                <span className="inline-block w-1.5 h-4 bg-zinc-400 ml-0.5 animate-pulse" />
+                <span className="inline-block w-[2px] h-[18px] bg-gold-400/60 ml-0.5 animate-pulse align-text-bottom" />
               )}
             </div>
             {citations.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-zinc-800">
+              <div className="mt-5 pt-4 border-t border-ink-800/40">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <svg
+                    className="w-3 h-3 text-gold-500/40"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                  <span className="text-[10px] text-gold-500/40 uppercase tracking-widest font-medium">
+                    Sources
+                  </span>
+                </div>
                 {citations.map((cite, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-1.5 text-xs text-zinc-500"
+                    className="flex items-start gap-2 text-xs text-parchment-300/40"
                   >
-                    <svg
-                      className="w-3 h-3 shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    </svg>
-                    <span>{cite}</span>
+                    <span className="text-gold-500/30 mt-px">{i + 1}.</span>
+                    <span className="italic">{cite}</span>
                   </div>
                 ))}
               </div>
             )}
           </>
         ) : response.isStreaming ? (
-          <div className="flex gap-1 items-center text-zinc-600 py-8 justify-center">
-            <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:0ms]" />
-            <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:150ms]" />
-            <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:300ms]" />
+          <div className="flex gap-1.5 items-center text-gold-400/40 py-8 justify-center">
+            <span className="w-1 h-1 bg-gold-400/40 rounded-full animate-bounce [animation-delay:0ms]" />
+            <span className="w-1 h-1 bg-gold-400/40 rounded-full animate-bounce [animation-delay:150ms]" />
+            <span className="w-1 h-1 bg-gold-400/40 rounded-full animate-bounce [animation-delay:300ms]" />
           </div>
         ) : (
-          <p className="text-zinc-600 text-sm text-center py-8">
+          <p className="text-parchment-300/20 text-sm text-center py-8 italic">
             Response will appear here
           </p>
         )}
@@ -163,9 +174,17 @@ export default function ComparePage() {
 
   useEffect(() => {
     if (leftResponse.isStreaming || rightResponse.isStreaming) {
-      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     }
-  }, [leftResponse.content, rightResponse.content, leftResponse.isStreaming, rightResponse.isStreaming]);
+  }, [
+    leftResponse.content,
+    rightResponse.content,
+    leftResponse.isStreaming,
+    rightResponse.isStreaming,
+  ]);
 
   const askBoth = async () => {
     const trimmed = question.trim();
@@ -184,10 +203,18 @@ export default function ComparePage() {
         trimmed,
         (text) => {
           leftAcc += text;
-          setLeftResponse({ content: leftAcc, isStreaming: true, done: false });
+          setLeftResponse({
+            content: leftAcc,
+            isStreaming: true,
+            done: false,
+          });
         },
         () => {
-          setLeftResponse({ content: leftAcc, isStreaming: false, done: true });
+          setLeftResponse({
+            content: leftAcc,
+            isStreaming: false,
+            done: true,
+          });
         }
       ).catch(() => {
         setLeftResponse({
@@ -234,45 +261,55 @@ export default function ComparePage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-ink-950 text-parchment-100">
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="flex items-center gap-4 mb-14"
+        >
           <Link
             href="/"
-            className="text-zinc-600 hover:text-white transition-colors"
+            className="text-parchment-300/40 hover:text-gold-400 transition-colors duration-300"
           >
             <svg
               className="w-5 h-5"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.5"
             >
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-serif font-medium text-parchment-50 tracking-tight">
               Compare Founders
             </h1>
-            <p className="text-zinc-500 text-sm mt-1">
+            <p className="text-parchment-300/40 text-sm mt-1">
               Ask the same question to two legends. See how different minds
               approach the same problem.
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Selector Row */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="flex flex-col md:flex-row gap-4 mb-8"
+        >
           <div className="flex-1">
-            <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">
+            <label className="text-[10px] text-gold-500/40 uppercase tracking-widest mb-2 block font-medium">
               Founder 1
             </label>
             <select
               value={left}
               onChange={(e) => setLeft(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-zinc-600 appearance-none cursor-pointer"
+              className="w-full bg-ink-900/50 border border-ink-700/40 rounded-xl px-4 py-3 text-sm text-parchment-100 focus:outline-none focus:border-gold-500/40 appearance-none cursor-pointer"
             >
               {figures.map((f) => (
                 <option key={f.slug} value={f.slug}>
@@ -282,16 +319,18 @@ export default function ComparePage() {
             </select>
           </div>
           <div className="flex items-end justify-center pb-3">
-            <span className="text-zinc-600 text-lg font-light">vs</span>
+            <span className="text-parchment-300/20 text-lg font-serif italic">
+              vs
+            </span>
           </div>
           <div className="flex-1">
-            <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">
+            <label className="text-[10px] text-gold-500/40 uppercase tracking-widest mb-2 block font-medium">
               Founder 2
             </label>
             <select
               value={right}
               onChange={(e) => setRight(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-zinc-600 appearance-none cursor-pointer"
+              className="w-full bg-ink-900/50 border border-ink-700/40 rounded-xl px-4 py-3 text-sm text-parchment-100 focus:outline-none focus:border-gold-500/40 appearance-none cursor-pointer"
             >
               {figures.map((f) => (
                 <option key={f.slug} value={f.slug}>
@@ -300,27 +339,32 @@ export default function ComparePage() {
               ))}
             </select>
           </div>
-        </div>
+        </motion.div>
 
         {/* Question Input */}
-        <div className="flex gap-3 mb-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="flex gap-3 mb-12"
+        >
           <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask both founders the same question..."
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600 transition-colors"
+            className="flex-1 bg-ink-900/50 border border-ink-700/40 rounded-xl px-4 py-3 text-sm text-parchment-100 placeholder-parchment-300/30 resize-none focus:outline-none focus:border-gold-500/40 focus:ring-1 focus:ring-gold-500/20 transition-all duration-300"
             rows={2}
             disabled={loading}
           />
           <button
             onClick={askBoth}
             disabled={loading || !question.trim()}
-            className="bg-white text-black px-6 py-2 rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed self-end"
+            className="bg-gold-500/90 hover:bg-gold-400 text-ink-950 px-6 py-2 rounded-xl text-sm font-medium transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed self-end shadow-[0_0_20px_rgba(201,168,76,0.15)]"
           >
             {loading ? "Thinking..." : "Compare"}
           </button>
-        </div>
+        </motion.div>
 
         {/* Response Panels */}
         <div ref={resultsRef} className="flex flex-col md:flex-row gap-6">

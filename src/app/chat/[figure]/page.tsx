@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, use } from "react";
 import { figures } from "@/lib/figures";
 import ChatMessage from "@/components/ChatMessage";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
   role: "user" | "assistant";
@@ -35,10 +36,10 @@ export default function ChatPage({
 
   if (!figure) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="min-h-screen bg-ink-950 text-parchment-100 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-zinc-500 mb-4">Figure not found.</p>
-          <Link href="/" className="text-white underline">
+          <p className="text-parchment-300/50 mb-4">Figure not found.</p>
+          <Link href="/" className="text-gold-400 hover:text-gold-500 transition-colors text-sm">
             Back to all figures
           </Link>
         </div>
@@ -129,89 +130,151 @@ export default function ChatPage({
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen bg-ink-950 text-parchment-100 flex flex-col">
       {/* Header */}
-      <header className="border-b border-zinc-900 px-6 py-4 flex items-center gap-4">
+      <motion.header
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="border-b border-ink-800/50 px-6 py-4 flex items-center gap-4 backdrop-blur-sm bg-ink-950/80 sticky top-0 z-50"
+      >
         <Link
           href="/"
-          className="text-zinc-600 hover:text-white transition-colors"
+          className="text-parchment-300/60 hover:text-gold-400 transition-colors duration-300"
         >
           <svg
             className="w-5 h-5"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.5"
           >
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </Link>
         <div className="flex items-center gap-3">
           <div
-            className={`w-8 h-8 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/60 text-xs font-serif`}
+            className={`w-9 h-9 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/50 text-xs font-serif ring-1 ring-white/10`}
           >
             {figure.name[0]}
           </div>
           <div>
-            <h1 className="text-sm font-semibold">{figure.name}</h1>
-            <p className="text-xs text-zinc-600">{figure.era}</p>
+            <h1 className="text-sm font-serif font-medium text-parchment-50">
+              {figure.name}
+            </h1>
+            <p className="text-[10px] text-gold-500/70 tracking-wider uppercase">
+              {figure.era}
+            </p>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {messages.length === 0 && !streamingContent && (
-            <div className="text-center py-24">
-              <div
-                className={`w-20 h-20 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/40 text-3xl font-serif mx-auto mb-6`}
+      <div className="flex-1 overflow-y-auto px-6 py-8">
+        <div className="max-w-2xl mx-auto space-y-8">
+          <AnimatePresence mode="wait">
+            {messages.length === 0 && !streamingContent && (
+              <motion.div
+                key="empty-state"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.6 }}
+                className="text-center py-20"
               >
-                {figure.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </div>
-              <p className="text-zinc-400 text-sm mb-2">
-                Start a conversation with {figure.name}
-              </p>
-              <p className="text-zinc-600 text-xs max-w-md mx-auto">
-                {figure.hook}
-              </p>
-            </div>
-          )}
+                {/* Large monogram */}
+                <div
+                  className={`w-24 h-24 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/30 text-3xl font-serif mx-auto mb-8 ring-1 ring-white/10 shadow-[0_0_60px_rgba(201,168,76,0.08)]`}
+                >
+                  {figure.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </div>
+
+                <h2 className="text-xl font-serif text-parchment-50 mb-3">
+                  {figure.name}
+                </h2>
+                <p className="text-parchment-300/60 text-sm max-w-md mx-auto leading-relaxed mb-8">
+                  {figure.hook}
+                </p>
+
+                {/* Suggested questions */}
+                <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto">
+                  {getSuggestedQuestions(figure.slug).map((q, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setInput(q);
+                        inputRef.current?.focus();
+                      }}
+                      className="text-xs text-parchment-300/70 border border-ink-700/50 rounded-lg px-3 py-2 hover:border-gold-500/40 hover:text-gold-400 transition-all duration-300"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {messages.map((msg, i) => (
-            <ChatMessage
+            <motion.div
               key={i}
-              role={msg.role}
-              content={msg.content}
-              figureName={figure.name}
-            />
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <ChatMessage
+                role={msg.role}
+                content={msg.content}
+                figureName={figure.name}
+                figureGradient={figure.gradient}
+              />
+            </motion.div>
           ))}
+
           {streamingContent && (
-            <ChatMessage
-              role="assistant"
-              content={streamingContent}
-              figureName={figure.name}
-              isStreaming
-            />
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <ChatMessage
+                role="assistant"
+                content={streamingContent}
+                figureName={figure.name}
+                figureGradient={figure.gradient}
+                isStreaming
+              />
+            </motion.div>
           )}
+
           {loading && !streamingContent && (
-            <div className="flex gap-1 items-center text-zinc-600">
-              <span className="text-xs uppercase tracking-wider mr-2">
-                {figure.name}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex gap-1.5 items-center text-parchment-300/40 pl-1"
+            >
+              <span className="text-[10px] uppercase tracking-widest mr-2 font-serif text-gold-500/60">
+                {figure.name.split(" ")[figure.name.split(" ").length - 1]}
               </span>
-              <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:300ms]" />
-            </div>
+              <span className="w-1 h-1 bg-gold-400/60 rounded-full animate-bounce [animation-delay:0ms]" />
+              <span className="w-1 h-1 bg-gold-400/60 rounded-full animate-bounce [animation-delay:150ms]" />
+              <span className="w-1 h-1 bg-gold-400/60 rounded-full animate-bounce [animation-delay:300ms]" />
+            </motion.div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-900 px-6 py-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="border-t border-ink-800/50 px-6 py-5 bg-ink-950/90 backdrop-blur-sm"
+      >
         <div className="max-w-2xl mx-auto flex gap-3">
           <textarea
             ref={inputRef}
@@ -219,19 +282,75 @@ export default function ChatPage({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={`Ask ${figure.name} anything...`}
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600 transition-colors"
+            className="flex-1 bg-ink-900/60 border border-ink-700/50 rounded-xl px-4 py-3 text-sm text-parchment-100 placeholder-parchment-300/40 resize-none focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/20 transition-all duration-300"
             rows={1}
             disabled={loading}
           />
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="bg-gold-500/90 hover:bg-gold-400 text-ink-950 px-5 py-2 rounded-xl text-sm font-medium transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(201,168,76,0.15)] hover:shadow-[0_0_30px_rgba(201,168,76,0.25)]"
           >
             Send
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
+}
+
+function getSuggestedQuestions(slug: string): string[] {
+  const questions: Record<string, string[]> = {
+    "john-d-rockefeller": [
+      "How would you cut costs in my business?",
+      "What did Ledger A teach you?",
+      "How do you turn a crisis into opportunity?",
+    ],
+    "steve-jobs": [
+      "How do you decide what to cut?",
+      "What makes a product great?",
+      "How do you build a team that ships?",
+    ],
+    "jeff-bezos": [
+      "What does Day 1 thinking mean?",
+      "How do you make decisions with 70% of the data?",
+      "How should I think about my customers?",
+    ],
+    "elon-musk": [
+      "How do you use first principles?",
+      "How do you set impossible deadlines?",
+      "What makes you keep going after failure?",
+    ],
+    "jensen-huang": [
+      "What is intellectual honesty?",
+      "How do you lead through suffering?",
+      "How did NVIDIA survive near-death?",
+    ],
+    "peter-thiel": [
+      "What secret do you know that nobody agrees with?",
+      "Why is competition overrated?",
+      "How do you find a monopoly?",
+    ],
+    "charlie-munger": [
+      "What mental models should I use?",
+      "How do you avoid being stupid?",
+      "What is inversion thinking?",
+    ],
+    "benjamin-franklin": [
+      "How do you reinvent yourself?",
+      "What are your 13 virtues?",
+      "How do you think about time?",
+    ],
+    "sam-walton": [
+      "How do you build a culture?",
+      "What did you learn visiting competitors?",
+      "How do you stay close to the customer?",
+    ],
+    "naval-ravikant": [
+      "How do you build leverage?",
+      "What is specific knowledge?",
+      "How do you think about wealth vs money?",
+    ],
+  };
+  return questions[slug] || ["What was your most important decision?", "What advice would you give a young person?", "What mistake taught you the most?"];
 }

@@ -3,11 +3,26 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
+
+  --color-parchment-50: #faf8f5;
+  --color-parchment-100: #ede9e0;
+  --color-parchment-200: #ddd7cb;
+  --color-parchment-300: #c4bba9;
+
+  --color-ink-700: #4a453d;
+  --color-ink-800: #2e2a24;
+  --color-ink-900: #1e1a15;
+  --color-ink-950: #0f0d0a;
+
+  --color-gold-400: #d4b45a;
+  --color-gold-500: #c9a84c;
+  --color-gold-600: #a88c3a;
 }
 
 body {
-  background: #000;
-  color: #ededed;
+  background: var(--color-ink-950);
+  color: var(--color-parchment-100);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
@@ -21,6 +36,21 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #2a2520;
   border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3530;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(201, 168, 76, 0.3);
+  color: var(--color-parchment-50);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
