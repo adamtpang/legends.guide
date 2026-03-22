@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, use } from "react";
 import { figures } from "@/lib/figures";
 import ChatMessage from "@/components/ChatMessage";
+import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -90,14 +91,16 @@ export default function ChatPage({
             try {
               const parsed = JSON.parse(data);
               if (parsed.error) {
-                throw new Error(parsed.error);
+                accumulated = "I cannot respond right now. Please try again in a moment.";
+                setStreamingContent(accumulated);
+                break;
               }
               if (parsed.text) {
                 accumulated += parsed.text;
                 setStreamingContent(accumulated);
               }
             } catch {
-              // skip malformed JSON
+              // skip malformed JSON lines
             }
           }
         }
@@ -153,10 +156,20 @@ export default function ChatPage({
           </svg>
         </Link>
         <div className="flex items-center gap-3">
-          <div
-            className={`w-9 h-9 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/50 text-xs font-serif ring-1 ring-white/10`}
-          >
-            {figure.name[0]}
+          <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-white/10 relative">
+            {figure.portrait ? (
+              <Image
+                src={figure.portrait}
+                alt={figure.name}
+                fill
+                className="object-cover object-top"
+                sizes="36px"
+              />
+            ) : (
+              <div className={`w-full h-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/50 text-xs font-serif`}>
+                {figure.name[0]}
+              </div>
+            )}
           </div>
           <div>
             <h1 className="text-sm font-serif font-medium text-parchment-50">
@@ -182,14 +195,21 @@ export default function ChatPage({
                 transition={{ duration: 0.6 }}
                 className="text-center py-20"
               >
-                {/* Large monogram */}
-                <div
-                  className={`w-24 h-24 rounded-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/30 text-3xl font-serif mx-auto mb-8 ring-1 ring-white/10 shadow-[0_0_60px_rgba(201,168,76,0.08)]`}
-                >
-                  {figure.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                {/* Portrait or monogram */}
+                <div className="w-24 h-24 rounded-full overflow-hidden mx-auto mb-8 ring-1 ring-white/10 shadow-[0_0_60px_rgba(201,168,76,0.08)] relative">
+                  {figure.portrait ? (
+                    <Image
+                      src={figure.portrait}
+                      alt={figure.name}
+                      fill
+                      className="object-cover object-top"
+                      sizes="96px"
+                    />
+                  ) : (
+                    <div className={`w-full h-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/30 text-3xl font-serif`}>
+                      {figure.name.split(" ").map((n) => n[0]).join("")}
+                    </div>
+                  )}
                 </div>
 
                 <h2 className="text-xl font-serif text-parchment-50 mb-3">
