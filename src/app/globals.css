@@ -5,52 +5,49 @@
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-playfair);
 
-  --color-parchment-50: #faf8f5;
-  --color-parchment-100: #ede9e0;
-  --color-parchment-200: #ddd7cb;
-  --color-parchment-300: #c4bba9;
+  --color-warm-50: #fafaf8;
+  --color-warm-100: #f5f4f0;
+  --color-warm-200: #e8e6e0;
+  --color-warm-300: #d4d0c8;
+  --color-warm-400: #a8a296;
+  --color-warm-500: #7c766a;
 
-  --color-ink-700: #4a453d;
-  --color-ink-800: #2e2a24;
-  --color-ink-900: #1e1a15;
-  --color-ink-950: #0f0d0a;
+  --color-ink-800: #2a2722;
+  --color-ink-900: #1a1816;
+  --color-ink-950: #0f0e0c;
 
-  --color-gold-400: #d4b45a;
-  --color-gold-500: #c9a84c;
-  --color-gold-600: #a88c3a;
-}
-
-body {
-  background: var(--color-ink-950);
-  color: var(--color-parchment-100);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #2a2520;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #3a3530;
+  --color-gold-500: #b89d4f;
+  --color-gold-600: #a08839;
 }
 
 /* Selection color */
 ::selection {
-  background: rgba(201, 168, 76, 0.3);
-  color: var(--color-parchment-50);
+  background: rgba(184, 157, 79, 0.2);
+  color: var(--color-ink-950);
 }
 
-/* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+/* Audio waveform animation */
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.waveform-bar {
+  animation: waveform 1.2s ease-in-out infinite;
+}
+
+/* Minimal scrollbar for chat */
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
 }

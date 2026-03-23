@@ -1,13 +1,15 @@
 import { ElevenLabsClient } from "elevenlabs";
 import { NextRequest } from "next/server";
 
-// Rockefeller voice: use a deep, authoritative, older male voice
-// We'll use "Daniel" (British deep) or similar. Can be swapped for a custom clone.
-const ROCKEFELLER_VOICE_ID = "onwK4e9ZLuTAKqWW03F9"; // Daniel - deep, measured, authoritative
+// Rockefeller voice: deep, authoritative, older male
+const ROCKEFELLER_VOICE_ID = "onwK4e9ZLuTAKqWW03F9"; // Daniel
 
-const client = new ElevenLabsClient({
-  apiKey: process.env.ELEVENLABS_API_KEY,
-});
+function getClient() {
+  if (!process.env.ELEVENLABS_API_KEY) {
+    throw new Error("ElevenLabs API key not configured");
+  }
+  return new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,12 +19,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Text is required" }, { status: 400 });
     }
 
-    if (!process.env.ELEVENLABS_API_KEY) {
-      return Response.json(
-        { error: "ElevenLabs API key not configured" },
-        { status: 500 }
-      );
-    }
+    const client = getClient();
 
     // Limit text length to control costs
     const trimmedText = text.slice(0, 2000);

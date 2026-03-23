@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useRef, useEffect, use } from "react";
+import { useState, useRef, useEffect, use, useCallback } from "react";
 import { figures } from "@/lib/figures";
-import ChatMessage from "@/components/ChatMessage";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+function parseCitations(text: string): { body: string; citations: string[] } {
+  const citationRegex = /\[Source:\s*"([^"]+)"\s*by\s*([^\]]+)\]/g;
+  const citations: string[] = [];
+  let match;
+  while ((match = citationRegex.exec(text)) !== null) {
+    citations.push(`${match[1]} by ${match[2]}`);
+  }
+  const body = text.replace(citationRegex, "").trim();
+  return { body, citations };
 }
 
 export default function ChatPage({
@@ -24,8 +34,12 @@ export default function ChatPage({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const hasMessages = messages.length > 0 || !!streamingContent;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -35,15 +49,54 @@ export default function ChatPage({
     inputRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+    };
+  }, []);
+
+  const autoPlayTTS = useCallback(async (text: string) => {
+    try {
+      setIsSpeaking(true);
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) { setIsSpeaking(false); return; }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+      await audio.play();
+    } catch { setIsSpeaking(false); }
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      URL.revokeObjectURL(audioRef.current.src);
+      audioRef.current = null;
+    }
+    setIsSpeaking(false);
+  }, []);
+
   if (!figure) {
     return (
-      <div className="min-h-screen bg-ink-950 text-parchment-100 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-parchment-300/50 mb-4">Figure not found.</p>
-          <Link href="/" className="text-gold-400 hover:text-gold-500 transition-colors text-sm">
-            Back to all figures
-          </Link>
-        </div>
+      <div className="min-h-screen bg-ink-950 text-warm-100 flex items-center justify-center">
+        <p className="text-warm-400">Figure not found. <Link href="/" className="underline">Back</Link></p>
       </div>
     );
   }
@@ -51,6 +104,7 @@ export default function ChatPage({
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
+    stopSpeaking();
 
     const userMessage: Message = { role: "user", content: trimmed };
     const newMessages = [...messages, userMessage];
@@ -63,13 +117,9 @@ export default function ChatPage({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          figure: figureSlug,
-          messages: newMessages,
-        }),
+        body: JSON.stringify({ figure: figureSlug, messages: newMessages }),
       });
-
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error("Failed");
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No reader");
@@ -80,243 +130,252 @@ export default function ChatPage({
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
+        for (const line of chunk.split("\n")) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
             if (data === "[DONE]") continue;
             try {
               const parsed = JSON.parse(data);
-              if (parsed.error) {
-                accumulated = "I cannot respond right now. Please try again in a moment.";
-                setStreamingContent(accumulated);
-                break;
-              }
-              if (parsed.text) {
-                accumulated += parsed.text;
-                setStreamingContent(accumulated);
-              }
-            } catch {
-              // skip malformed JSON lines
-            }
+              if (parsed.error) { accumulated = "I cannot respond right now."; setStreamingContent(accumulated); break; }
+              if (parsed.text) { accumulated += parsed.text; setStreamingContent(accumulated); }
+            } catch { /* skip */ }
           }
         }
       }
 
-      setMessages([
-        ...newMessages,
-        { role: "assistant", content: accumulated },
-      ]);
+      setMessages([...newMessages, { role: "assistant", content: accumulated }]);
       setStreamingContent("");
+
+      if (accumulated && !accumulated.startsWith("I cannot respond")) {
+        const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
+        autoPlayTTS(cleanText);
+      }
     } catch {
-      setMessages([
-        ...newMessages,
-        {
-          role: "assistant",
-          content: "Something went wrong. Try again.",
-        },
-      ]);
+      setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Try again." }]);
       setStreamingContent("");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  const sendQuickMessage = (text: string) => {
+    setInput(text);
+    // Use a ref-based approach: set input then trigger send on next tick
+    setTimeout(() => {
+      const userMessage: Message = { role: "user", content: text };
+      const newMessages = [userMessage];
+      setMessages(newMessages);
+      setInput("");
+      setLoading(true);
+      setStreamingContent("");
+      stopSpeaking();
+
+      fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ figure: figureSlug, messages: newMessages }),
+      }).then(async (res) => {
+        if (!res.ok) throw new Error("Failed");
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No reader");
+        const decoder = new TextDecoder();
+        let accumulated = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          for (const line of chunk.split("\n")) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.error) { accumulated = "I cannot respond right now."; setStreamingContent(accumulated); break; }
+                if (parsed.text) { accumulated += parsed.text; setStreamingContent(accumulated); }
+              } catch { /* skip */ }
+            }
+          }
+        }
+        setMessages([...newMessages, { role: "assistant", content: accumulated }]);
+        setStreamingContent("");
+        if (accumulated && !accumulated.startsWith("I cannot respond")) {
+          const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
+          autoPlayTTS(cleanText);
+        }
+      }).catch(() => {
+        setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Try again." }]);
+        setStreamingContent("");
+      }).finally(() => {
+        setLoading(false);
+      });
+    }, 0);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  // Get the latest assistant message for display
+  const latestAssistant = streamingContent
+    || (messages.length > 0 && messages[messages.length - 1].role === "assistant"
+      ? messages[messages.length - 1].content
+      : "");
+  const { body: displayText, citations } = latestAssistant && !streamingContent
+    ? parseCitations(latestAssistant)
+    : { body: latestAssistant, citations: [] };
+
   return (
-    <div className="min-h-screen bg-ink-950 text-parchment-100 flex flex-col">
-      {/* Header */}
-      <motion.header
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="border-b border-ink-800/50 px-6 py-4 flex items-center gap-4 backdrop-blur-sm bg-ink-950/80 sticky top-0 z-50"
-      >
-        <Link
-          href="/"
-          className="text-parchment-300/60 hover:text-gold-400 transition-colors duration-300"
-        >
-          <svg
-            className="w-5 h-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
+    <div className="h-screen bg-ink-950 text-warm-100 flex flex-col overflow-hidden relative">
+      {/* Full-bleed portrait background */}
+      {figure.portrait && (
+        <div className="absolute inset-0 z-0">
+          <Image
+            src={figure.portrait}
+            alt={figure.name}
+            fill
+            className={`object-cover object-top transition-all duration-1000 ${hasMessages ? "scale-105 blur-[2px]" : "scale-100"}`}
+            sizes="100vw"
+            priority
+          />
+          {/* Gradient overlay — heavier at bottom for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/70 to-ink-950/30" />
+        </div>
+      )}
+
+      {/* Top bar */}
+      <div className="relative z-10 flex items-center justify-between px-5 pt-5 pb-3">
+        <Link href="/" className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/50 transition-all">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </Link>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-white/10 relative">
-            {figure.portrait ? (
-              <Image
-                src={figure.portrait}
-                alt={figure.name}
-                fill
-                className="object-cover object-top"
-                sizes="36px"
-              />
-            ) : (
-              <div className={`w-full h-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/50 text-xs font-serif`}>
-                {figure.name[0]}
+
+        <AnimatePresence>
+          {isSpeaking && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={stopSpeaking}
+              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2 hover:bg-black/50 transition-all"
+            >
+              <div className="flex items-end gap-[2px] h-3">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="w-[2px] bg-white rounded-full waveform-bar" style={{ height: "100%", animationDelay: `${i * 0.15}s` }} />
+                ))}
               </div>
-            )}
-          </div>
-          <div>
-            <h1 className="text-sm font-serif font-medium text-parchment-50">
-              {figure.name}
-            </h1>
-            <p className="text-[10px] text-gold-500/70 tracking-wider uppercase">
-              {figure.era}
-            </p>
-          </div>
-        </div>
-      </motion.header>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="max-w-2xl mx-auto space-y-8">
-          <AnimatePresence mode="wait">
-            {messages.length === 0 && !streamingContent && (
-              <motion.div
-                key="empty-state"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.6 }}
-                className="text-center py-20"
-              >
-                {/* Portrait or monogram */}
-                <div className="w-24 h-24 rounded-full overflow-hidden mx-auto mb-8 ring-1 ring-white/10 shadow-[0_0_60px_rgba(201,168,76,0.08)] relative">
-                  {figure.portrait ? (
-                    <Image
-                      src={figure.portrait}
-                      alt={figure.name}
-                      fill
-                      className="object-cover object-top"
-                      sizes="96px"
-                    />
-                  ) : (
-                    <div className={`w-full h-full bg-gradient-to-b ${figure.gradient} flex items-center justify-center text-white/30 text-3xl font-serif`}>
-                      {figure.name.split(" ").map((n) => n[0]).join("")}
-                    </div>
-                  )}
-                </div>
-
-                <h2 className="text-xl font-serif text-parchment-50 mb-3">
-                  {figure.name}
-                </h2>
-                <p className="text-parchment-300/60 text-sm max-w-md mx-auto leading-relaxed mb-8">
-                  {figure.hook}
-                </p>
-
-                {/* Suggested questions */}
-                <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto">
-                  {getSuggestedQuestions(figure.slug).map((q, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setInput(q);
-                        inputRef.current?.focus();
-                      }}
-                      className="text-xs text-parchment-300/70 border border-ink-700/50 rounded-lg px-3 py-2 hover:border-gold-500/40 hover:text-gold-400 transition-all duration-300"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <ChatMessage
-                role={msg.role}
-                content={msg.content}
-                figureName={figure.name}
-                figureGradient={figure.gradient}
-                figurePortrait={figure.portrait}
-              />
-            </motion.div>
-          ))}
-
-          {streamingContent && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <ChatMessage
-                role="assistant"
-                content={streamingContent}
-                figureName={figure.name}
-                figureGradient={figure.gradient}
-                figurePortrait={figure.portrait}
-                isStreaming
-              />
-            </motion.div>
+              <span className="text-xs text-white/80">Speaking</span>
+            </motion.button>
           )}
-
-          {loading && !streamingContent && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex gap-1.5 items-center text-parchment-300/40 pl-1"
-            >
-              <span className="text-[10px] uppercase tracking-widest mr-2 font-serif text-gold-500/60">
-                {figure.name.split(" ")[figure.name.split(" ").length - 1]}
-              </span>
-              <span className="w-1 h-1 bg-gold-400/60 rounded-full animate-bounce [animation-delay:0ms]" />
-              <span className="w-1 h-1 bg-gold-400/60 rounded-full animate-bounce [animation-delay:150ms]" />
-              <span className="w-1 h-1 bg-gold-400/60 rounded-full animate-bounce [animation-delay:300ms]" />
-            </motion.div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
+        </AnimatePresence>
       </div>
 
+      {/* Middle — portrait area / empty state */}
+      <div className="relative z-10 flex-1 flex flex-col">
+        {!hasMessages ? (
+          /* Empty state — name + suggested questions over the portrait */
+          <div className="flex-1 flex flex-col justify-end px-6 pb-6">
+            <h1 className="text-3xl md:text-4xl font-serif font-medium text-white mb-2">
+              {figure.name}
+            </h1>
+            <p className="text-white/50 text-sm mb-8">{figure.era}</p>
+
+            <div className="flex flex-wrap gap-2">
+              {getSuggestedQuestions(figure.slug).map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendQuickMessage(q)}
+                  className="text-sm text-white/80 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-white/20 transition-all"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Conversation — scrollable messages over blurred portrait */
+          <div className="flex-1 overflow-y-auto px-5 py-4 chat-scroll">
+            <div className="max-w-2xl mx-auto space-y-4">
+              {messages.map((msg, i) => {
+                if (msg.role === "user") {
+                  return (
+                    <div key={i} className="flex justify-end">
+                      <div className="max-w-[80%] bg-white/15 backdrop-blur-sm rounded-2xl rounded-br-sm px-4 py-3">
+                        <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                const { body } = parseCitations(msg.content);
+                const isLatest = i === messages.length - 1;
+                return (
+                  <div key={i} className="flex justify-start">
+                    <div className={`max-w-[85%] ${isLatest ? "" : "opacity-60"}`}>
+                      <p className="text-[15px] text-white leading-[1.8] whitespace-pre-wrap">{body}</p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {streamingContent && (
+                <div className="flex justify-start">
+                  <div className="max-w-[85%]">
+                    <p className="text-[15px] text-white leading-[1.8] whitespace-pre-wrap">
+                      {streamingContent}
+                      <span className="inline-block w-[2px] h-[16px] bg-white/60 ml-0.5 animate-pulse align-text-bottom" />
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {loading && !streamingContent && (
+                <div className="flex gap-1.5 py-2">
+                  <span className="w-1.5 h-1.5 bg-white/50 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-white/50 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-white/50 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Citations — subtle bar above input */}
+      {citations.length > 0 && !streamingContent && (
+        <div className="relative z-10 px-6 py-2 bg-black/20 backdrop-blur-sm">
+          <p className="text-[10px] text-white/30 uppercase tracking-widest">
+            Source: <span className="italic">{citations[0]}</span>
+          </p>
+        </div>
+      )}
+
       {/* Input */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="border-t border-ink-800/50 px-6 py-5 bg-ink-950/90 backdrop-blur-sm"
-      >
-        <div className="max-w-2xl mx-auto flex gap-3">
+      <div className="relative z-10 px-5 pb-5 pt-3">
+        <div className="flex gap-3 max-w-2xl mx-auto">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Ask ${figure.name} anything...`}
-            className="flex-1 bg-ink-900/60 border border-ink-700/50 rounded-xl px-4 py-3 text-sm text-parchment-100 placeholder-parchment-300/40 resize-none focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/20 transition-all duration-300"
+            placeholder={`Message ${figure.name}...`}
+            className="flex-1 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors"
             rows={1}
             disabled={loading}
           />
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="bg-gold-500/90 hover:bg-gold-400 text-ink-950 px-5 py-2 rounded-xl text-sm font-medium transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(201,168,76,0.15)] hover:shadow-[0_0_30px_rgba(201,168,76,0.25)]"
+            className="bg-white text-ink-950 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 self-end"
           >
-            Send
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -324,55 +383,10 @@ export default function ChatPage({
 function getSuggestedQuestions(slug: string): string[] {
   const questions: Record<string, string[]> = {
     "john-d-rockefeller": [
-      "How would you cut costs in my business?",
+      "How would you cut costs?",
       "What did Ledger A teach you?",
-      "How do you turn a crisis into opportunity?",
-    ],
-    "steve-jobs": [
-      "How do you decide what to cut?",
-      "What makes a product great?",
-      "How do you build a team that ships?",
-    ],
-    "jeff-bezos": [
-      "What does Day 1 thinking mean?",
-      "How do you make decisions with 70% of the data?",
-      "How should I think about my customers?",
-    ],
-    "elon-musk": [
-      "How do you use first principles?",
-      "How do you set impossible deadlines?",
-      "What makes you keep going after failure?",
-    ],
-    "jensen-huang": [
-      "What is intellectual honesty?",
-      "How do you lead through suffering?",
-      "How did NVIDIA survive near-death?",
-    ],
-    "peter-thiel": [
-      "What secret do you know that nobody agrees with?",
-      "Why is competition overrated?",
-      "How do you find a monopoly?",
-    ],
-    "charlie-munger": [
-      "What mental models should I use?",
-      "How do you avoid being stupid?",
-      "What is inversion thinking?",
-    ],
-    "benjamin-franklin": [
-      "How do you reinvent yourself?",
-      "What are your 13 virtues?",
-      "How do you think about time?",
-    ],
-    "sam-walton": [
-      "How do you build a culture?",
-      "What did you learn visiting competitors?",
-      "How do you stay close to the customer?",
-    ],
-    "naval-ravikant": [
-      "How do you build leverage?",
-      "What is specific knowledge?",
-      "How do you think about wealth vs money?",
+      "Turn a crisis into opportunity?",
     ],
   };
-  return questions[slug] || ["What was your most important decision?", "What advice would you give a young person?", "What mistake taught you the most?"];
+  return questions[slug] || ["What was your most important decision?", "What advice for a young person?"];
 }
