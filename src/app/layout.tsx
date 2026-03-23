@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { PostHogProvider } from "./providers";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,9 +17,24 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "legends.guide | Talk to History's Greatest Founders",
+  title: "legends.guide | Talk to History's Greatest",
   description:
-    "Chat with Rockefeller, Jobs, Bezos, Musk, and more. Deeply researched AI personalities grounded in real biographies. Compare how different founders approach your problem.",
+    "Talk to history's greatest minds. Deeply researched AI mentors grounded in real biographies — Rockefeller, Musk, Franklin, and more. Voice-enabled. Free to try.",
+  metadataBase: new URL("https://legends.guide"),
+  openGraph: {
+    title: "legends.guide — Talk to History's Greatest",
+    description:
+      "Get mentorship from the greatest humans who ever lived. Deeply researched. Voice-enabled. Free to try.",
+    url: "https://legends.guide",
+    siteName: "legends.guide",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "legends.guide — Talk to History's Greatest",
+    description:
+      "Get mentorship from the greatest humans who ever lived. Free to try.",
+  },
 };
 
 export default function RootLayout({
@@ -29,7 +47,13 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <PostHogProvider>
+          {children}
+        </PostHogProvider>
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
