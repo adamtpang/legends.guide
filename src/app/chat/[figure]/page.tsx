@@ -6,7 +6,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSession, signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import WisdomCard from "@/components/WisdomCard";
+import FeedbackModal from "@/components/FeedbackModal";
 
 interface Message {
   role: "user" | "assistant";
@@ -31,6 +33,8 @@ export default function ChatPage({
 }) {
   const { figure: figureSlug } = use(params);
   const figure = figures.find((f) => f.slug === figureSlug);
+  const searchParams = useSearchParams();
+  const matchReason = searchParams.get("reason");
 
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -42,6 +46,9 @@ export default function ChatPage({
   const [showPaywall, setShowPaywall] = useState(false);
   const [wisdomQuote, setWisdomQuote] = useState<string | null>(null);
   const [showWisdomCard, setShowWisdomCard] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
+  const [showReason, setShowReason] = useState(!!matchReason);
   const wisdomCardShownRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -210,7 +217,12 @@ export default function ChatPage({
 
       // Decrement credit
       fetch("/api/credits", { method: "POST" }).then(r => r.json()).then(data => {
-        if (data.credits !== undefined) setCredits(data.credits);
+        if (data.credits !== undefined) {
+          setCredits(data.credits);
+          if (data.credits === 0 && !feedbackGiven) {
+            setShowFeedback(true);
+          }
+        }
       });
 
       if (accumulated && !accumulated.startsWith("I cannot respond")) {
@@ -279,7 +291,12 @@ export default function ChatPage({
         setStreamingContent("");
         // Decrement credit
         fetch("/api/credits", { method: "POST" }).then(r => r.json()).then(data => {
-          if (data.credits !== undefined) setCredits(data.credits);
+          if (data.credits !== undefined) {
+            setCredits(data.credits);
+            if (data.credits === 0 && !feedbackGiven) {
+              setShowFeedback(true);
+            }
+          }
         });
         if (accumulated && !accumulated.startsWith("I cannot respond")) {
           const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
@@ -358,18 +375,39 @@ export default function ChatPage({
       {/* Middle — portrait area / empty state */}
       <div className="relative z-10 flex-1 flex flex-col">
         {!hasMessages ? (
-          /* Empty state — name + suggested questions over the portrait */
+          /* Empty state — name + profile stats + suggested questions over the portrait */
           <div className="flex-1 flex flex-col justify-end px-6 pb-6">
-            <h1 className="text-3xl md:text-4xl font-serif font-medium text-white mb-2">
+            {/* Match reason banner */}
+            {showReason && matchReason && (
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 mb-6 border border-white/10">
+                <p className="text-sm text-white/80 italic">{matchReason}</p>
+              </div>
+            )}
+
+            <h1 className="text-3xl md:text-4xl font-serif font-medium text-white mb-1">
               {figure.name}
             </h1>
-            <p className="text-white/50 text-sm mb-8">{figure.era}</p>
+            <p className="text-white/50 text-sm mb-2">{figure.era}</p>
+            <p className="text-white/60 text-sm italic mb-5">{figure.knownFor}</p>
+
+            {/* Stats pills */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              {figure.stats.map((s, i) => (
+                <div key={i} className="bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs text-white/70">
+                  <span className="text-white/40">{s.label}</span>{" "}
+                  <span className="font-medium text-white">{s.value}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="flex flex-wrap gap-2">
               {getSuggestedQuestions(figure.slug).map((q, i) => (
                 <button
                   key={i}
-                  onClick={() => sendQuickMessage(q)}
+                  onClick={() => {
+                    setShowReason(false);
+                    sendQuickMessage(q);
+                  }}
                   className="text-sm text-white/80 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-white/20 transition-all"
                 >
                   {q}
@@ -482,6 +520,19 @@ export default function ChatPage({
         )}
       </AnimatePresence>
 
+      {/* Feedback modal — shows before paywall when credits hit 0 */}
+      {showFeedback && figure && (
+        <FeedbackModal
+          figureSlug={figure.slug}
+          figureName={figure.name}
+          onClose={() => {
+            setShowFeedback(false);
+            setFeedbackGiven(true);
+            setShowPaywall(true);
+          }}
+        />
+      )}
+
       {/* Paywall modal */}
       <AnimatePresence>
         {showPaywall && (
@@ -531,6 +582,36 @@ function getSuggestedQuestions(slug: string): string[] {
       "How would you cut costs?",
       "What did Ledger A teach you?",
       "Turn a crisis into opportunity?",
+    ],
+    "elon-musk": [
+      "How do you think from first principles?",
+      "What was 2008 like for you?",
+      "How do you compress timelines?",
+    ],
+    "peter-thiel": [
+      "How do I build a monopoly?",
+      "What's a contrarian truth?",
+      "Why is competition for losers?",
+    ],
+    "benjamin-franklin": [
+      "How did you teach yourself to write?",
+      "Tell me about the 13 virtues.",
+      "How do you reinvent yourself?",
+    ],
+    "alexander-the-great": [
+      "How do you lead from the front?",
+      "What did Aristotle teach you?",
+      "How did you conquer the Persian Empire?",
+    ],
+    "lee-kuan-yew": [
+      "How did you build Singapore?",
+      "What makes a nation succeed?",
+      "How do you fight corruption?",
+    ],
+    "david-deutsch": [
+      "What is the beginning of infinity?",
+      "How does knowledge grow?",
+      "Why are problems soluble?",
     ],
   };
   return questions[slug] || ["What was your most important decision?", "What advice for a young person?"];
