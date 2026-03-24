@@ -78,6 +78,7 @@ export default function ChatPage({
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [showReason, setShowReason] = useState(!!matchReason);
   const [followups, setFollowups] = useState<string[]>([]);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const wisdomCardShownRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -217,16 +218,18 @@ export default function ChatPage({
 
       setLastAudioUrl(url);
       const audio = new Audio(url);
+      audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
       audio.onended = () => { setIsSpeaking(false); setCanReplay(true); };
       audio.onerror = () => { setIsSpeaking(false); setCanReplay(true); };
       await audio.play();
     } catch { setIsSpeaking(false); }
-  }, [figureSlug, lastAudioUrl]);
+  }, [figureSlug, lastAudioUrl, playbackSpeed]);
 
   const replayAudio = useCallback(() => {
     if (lastAudioUrl) {
       const audio = new Audio(lastAudioUrl);
+      audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
       audio.onended = () => { setIsSpeaking(false); setCanReplay(true); };
       audio.onerror = () => { setIsSpeaking(false); setCanReplay(true); };
@@ -234,7 +237,17 @@ export default function ChatPage({
       setCanReplay(false);
       audio.play();
     }
-  }, [lastAudioUrl]);
+  }, [lastAudioUrl, playbackSpeed]);
+
+  const cycleSpeed = useCallback(() => {
+    const speeds = [1, 1.25, 1.5, 2, 0.75];
+    const currentIndex = speeds.indexOf(playbackSpeed);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+    setPlaybackSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  }, [playbackSpeed]);
 
   const stopSpeaking = useCallback(() => {
     if (audioRef.current) {
@@ -383,35 +396,55 @@ export default function ChatPage({
 
         <AnimatePresence mode="wait">
           {isSpeaking ? (
-            <motion.button
+            <motion.div
               key="speaking"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              onClick={stopSpeaking}
-              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
+              className="flex items-center gap-1"
             >
-              <div className="flex items-end gap-[2px] h-3">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <div key={i} className="w-[2px] bg-white rounded-full waveform-bar" style={{ height: "100%", animationDelay: `${i * 0.15}s` }} />
-                ))}
-              </div>
-              <span className="text-xs text-white/80">Speaking</span>
-            </motion.button>
+              <button
+                onClick={stopSpeaking}
+                className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
+              >
+                <div className="flex items-end gap-[2px] h-3">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="w-[2px] bg-white rounded-full waveform-bar" style={{ height: "100%", animationDelay: `${i * 0.15}s` }} />
+                  ))}
+                </div>
+                <span className="text-xs text-white/80">Speaking</span>
+              </button>
+              <button
+                onClick={cycleSpeed}
+                className="bg-black/30 backdrop-blur-sm rounded-full px-3 py-2.5 hover:bg-black/50 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                <span className="text-xs text-white/80 font-medium">{playbackSpeed}x</span>
+              </button>
+            </motion.div>
           ) : canReplay ? (
-            <motion.button
+            <motion.div
               key="replay"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              onClick={replayAudio}
-              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
+              className="flex items-center gap-1"
             >
-              <svg className="w-4 h-4 text-white/80" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              <span className="text-xs text-white/80">Listen again</span>
-            </motion.button>
+              <button
+                onClick={replayAudio}
+                className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
+              >
+                <svg className="w-4 h-4 text-white/80" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span className="text-xs text-white/80">Listen again</span>
+              </button>
+              <button
+                onClick={cycleSpeed}
+                className="bg-black/30 backdrop-blur-sm rounded-full px-3 py-2.5 hover:bg-black/50 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                <span className="text-xs text-white/80 font-medium">{playbackSpeed}x</span>
+              </button>
+            </motion.div>
           ) : null}
         </AnimatePresence>
       </div>
