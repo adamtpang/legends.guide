@@ -5,6 +5,8 @@ import { figures } from "@/lib/figures";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSession, signIn } from "next-auth/react";
+import WisdomCard from "@/components/WisdomCard";
 
 interface Message {
   role: "user" | "assistant";
@@ -30,16 +32,64 @@ export default function ChatPage({
   const { figure: figureSlug } = use(params);
   const figure = figures.find((f) => f.slug === figureSlug);
 
+  const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [wisdomQuote, setWisdomQuote] = useState<string | null>(null);
+  const [showWisdomCard, setShowWisdomCard] = useState(false);
+  const wisdomCardShownRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const hasMessages = messages.length > 0 || !!streamingContent;
+
+  // Extract a shareable quote after 5+ exchanges (10 messages)
+  const maybeExtractQuote = useCallback(async (allMessages: Message[]) => {
+    if (wisdomCardShownRef.current) return;
+    if (allMessages.length < 10) return; // 5 exchanges = 10 messages
+
+    // Check localStorage
+    const storageKey = `wisdom_shown_${figureSlug}`;
+    if (typeof window !== "undefined" && localStorage.getItem(storageKey)) return;
+
+    wisdomCardShownRef.current = true;
+
+    try {
+      const res = await fetch("/api/extract-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: allMessages,
+          figureName: figure?.name,
+          era: figure?.era,
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.quote) {
+        setWisdomQuote(data.quote);
+        setShowWisdomCard(true);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, "true");
+        }
+      }
+    } catch { /* silently fail */ }
+  }, [figureSlug, figure?.name, figure?.era]);
+
+  // Fetch credits on mount and when session changes
+  useEffect(() => {
+    if (session?.user) {
+      fetch("/api/credits").then(r => r.json()).then(data => {
+        setCredits(data.credits);
+      });
+    }
+  }, [session]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,6 +154,16 @@ export default function ChatPage({
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
+
+    // Check if user needs to sign in or buy credits
+    if (!session?.user) {
+      signIn("google");
+      return;
+    }
+    if (credits !== null && credits <= 0) {
+      setShowPaywall(true);
+      return;
+    }
     stopSpeaking();
 
     const userMessage: Message = { role: "user", content: trimmed };
@@ -144,13 +204,22 @@ export default function ChatPage({
         }
       }
 
-      setMessages([...newMessages, { role: "assistant", content: accumulated }]);
+      const finalMessages = [...newMessages, { role: "assistant" as const, content: accumulated }];
+      setMessages(finalMessages);
       setStreamingContent("");
+
+      // Decrement credit
+      fetch("/api/credits", { method: "POST" }).then(r => r.json()).then(data => {
+        if (data.credits !== undefined) setCredits(data.credits);
+      });
 
       if (accumulated && !accumulated.startsWith("I cannot respond")) {
         const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
         autoPlayTTS(cleanText);
       }
+
+      // Trigger wisdom card after enough exchanges
+      maybeExtractQuote(finalMessages);
     } catch {
       setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Try again." }]);
       setStreamingContent("");
@@ -160,8 +229,16 @@ export default function ChatPage({
   };
 
   const sendQuickMessage = (text: string) => {
+    // Check if user needs to sign in or buy credits
+    if (!session?.user) {
+      signIn("google");
+      return;
+    }
+    if (credits !== null && credits <= 0) {
+      setShowPaywall(true);
+      return;
+    }
     setInput(text);
-    // Use a ref-based approach: set input then trigger send on next tick
     setTimeout(() => {
       const userMessage: Message = { role: "user", content: text };
       const newMessages = [userMessage];
@@ -197,12 +274,19 @@ export default function ChatPage({
             }
           }
         }
-        setMessages([...newMessages, { role: "assistant", content: accumulated }]);
+        const finalMessages = [...newMessages, { role: "assistant" as const, content: accumulated }];
+        setMessages(finalMessages);
         setStreamingContent("");
+        // Decrement credit
+        fetch("/api/credits", { method: "POST" }).then(r => r.json()).then(data => {
+          if (data.credits !== undefined) setCredits(data.credits);
+        });
         if (accumulated && !accumulated.startsWith("I cannot respond")) {
           const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
           autoPlayTTS(cleanText);
         }
+        // Trigger wisdom card after enough exchanges
+        maybeExtractQuote(finalMessages);
       }).catch(() => {
         setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Try again." }]);
         setStreamingContent("");
@@ -352,15 +436,22 @@ export default function ChatPage({
         </div>
       )}
 
+      {/* Credits indicator */}
+      {session?.user && credits !== null && (
+        <div className="relative z-10 px-5 py-1 flex justify-center">
+          <span className="text-[10px] text-white/30">{credits} messages remaining</span>
+        </div>
+      )}
+
       {/* Input */}
-      <div className="relative z-10 px-5 pb-5 pt-3">
+      <div className="relative z-10 px-5 pb-5 pt-2">
         <div className="flex gap-3 max-w-2xl mx-auto">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Message ${figure.name}...`}
+            placeholder={!session?.user ? "Sign in to start chatting..." : `Message ${figure.name}...`}
             className="flex-1 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors"
             rows={1}
             disabled={loading}
@@ -376,6 +467,60 @@ export default function ChatPage({
           </button>
         </div>
       </div>
+
+      {/* Wisdom Card share panel */}
+      <AnimatePresence>
+        {showWisdomCard && wisdomQuote && figure && (
+          <WisdomCard
+            quote={wisdomQuote}
+            figureName={figure.name}
+            era={figure.era}
+            figureSlug={figure.slug}
+            figureColor={figure.color}
+            onDismiss={() => setShowWisdomCard(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Paywall modal */}
+      <AnimatePresence>
+        {showPaywall && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl p-8 max-w-sm w-full text-center"
+            >
+              <h2 className="text-2xl font-serif font-medium text-ink-950 mb-2">
+                Keep the conversation going
+              </h2>
+              <p className="text-warm-400 text-sm mb-6">
+                You&apos;ve used all your free messages. Get 100 more to continue learning from history&apos;s greatest.
+              </p>
+              <a
+                href="https://buy.stripe.com/7sY4gz0wy7cFeUM1q9aMU0i"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full bg-ink-950 text-white rounded-full py-3 px-6 text-sm font-medium hover:bg-ink-800 transition-colors mb-3"
+              >
+                100 messages — $10
+              </a>
+              <button
+                onClick={() => setShowPaywall(false)}
+                className="text-sm text-warm-400 hover:text-ink-950 transition-colors"
+              >
+                Maybe later
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

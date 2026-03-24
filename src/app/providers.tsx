@@ -2,9 +2,10 @@
 
 import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "posthog-js/react";
+import { SessionProvider } from "next-auth/react";
 import { useEffect } from "react";
 
-export function PostHogProvider({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
       posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
@@ -15,9 +16,14 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const inner = <SessionProvider>{children}</SessionProvider>;
+
   if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-    return <>{children}</>;
+    return inner;
   }
 
-  return <PHProvider client={posthog}>{children}</PHProvider>;
+  return <PHProvider client={posthog}>{inner}</PHProvider>;
 }
+
+// Keep backward compat export
+export { Providers as PostHogProvider };

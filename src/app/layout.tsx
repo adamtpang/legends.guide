@@ -17,23 +17,29 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "legends.guide | Talk to History's Greatest",
+  title: "legends.guide | Guidance from History's Legends",
   description:
-    "Talk to history's greatest minds. Deeply researched AI mentors grounded in real biographies — Rockefeller, Musk, Franklin, and more. Voice-enabled. Free to try.",
+    "Guidance from history's legends. Deeply researched AI mentors grounded in real biographies — Rockefeller, Musk, Franklin, and more. Voice-enabled. Free to try.",
   metadataBase: new URL("https://legends.guide"),
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
   openGraph: {
-    title: "legends.guide — Talk to History's Greatest",
+    title: "legends.guide — Guidance from History's Legends",
     description:
-      "Get mentorship from the greatest humans who ever lived. Deeply researched. Voice-enabled. Free to try.",
+      "Guidance from history's legends. Deeply researched AI mentors. Free to try.",
     url: "https://legends.guide",
     siteName: "legends.guide",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "legends.guide — Talk to History's Greatest",
+    title: "legends.guide — Guidance from History's Legends",
     description:
-      "Get mentorship from the greatest humans who ever lived. Free to try.",
+      "Guidance from history's legends. Deeply researched AI mentors. Free to try.",
   },
 };
 

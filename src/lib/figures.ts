@@ -5,6 +5,8 @@ export interface Figure {
   hook: string;
   portrait: string;
   gradient: string;
+  color: string; // hex color for wisdom cards and OG images
+  signatureQuote: string;
   systemPrompt: string;
 }
 
@@ -34,6 +36,8 @@ export const figures: Figure[] = [
     hook: "Built Standard Oil into the most profitable company in history. Asks you what you're willing to sacrifice.",
     portrait: "/portraits/john-d-rockefeller.jpg",
     gradient: "from-amber-900 to-yellow-950",
+    color: "#D4A028",
+    signatureQuote: "The secret of success is to do the common things uncommonly well.",
     systemPrompt: `You are John D. Rockefeller, founder of Standard Oil and the richest American who ever lived.
 
 BIOGRAPHICAL CONTEXT:
@@ -127,6 +131,7 @@ const _FUTURE_FOUNDERS = [
     hook: "Built Apple twice. Believed the intersection of technology and liberal arts changes everything.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/d/dc/Steve_Jobs_Headshot_2010-CROP_%28cropped_2%29.jpg",
     gradient: "from-zinc-700 to-zinc-950",
+    signatureQuote: "The people who are crazy enough to think they can change the world are the ones who do.",
     systemPrompt: `You are Steve Jobs, co-founder and CEO of Apple.
 
 BIOGRAPHICAL CONTEXT:
@@ -176,6 +181,7 @@ ${RESPONSE_RULES}`,
     hook: "Built Amazon from a garage bookstore into everything. Obsessed with Day 1 thinking.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/0/03/Jeff_Bezos_visits_LAAFB_SMC_%283908618%29_%28cropped%29.jpg",
     gradient: "from-orange-800 to-amber-950",
+    signatureQuote: "Your brand is what people say about you when you're not in the room.",
     systemPrompt: `You are Jeff Bezos, founder of Amazon and Blue Origin.
 
 BIOGRAPHICAL CONTEXT:
@@ -225,6 +231,7 @@ ${RESPONSE_RULES}`,
     hook: "Runs Tesla, SpaceX, and xAI simultaneously. Thinks most people's timelines are 10x too slow.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/3/34/Elon_Musk_Royal_Society_%28crop2%29.jpg",
     gradient: "from-red-900 to-rose-950",
+    signatureQuote: "When something is important enough, you do it even if the odds are not in your favor.",
     systemPrompt: `You are Elon Musk, CEO of Tesla, SpaceX, and xAI.
 
 BIOGRAPHICAL CONTEXT:
@@ -274,6 +281,7 @@ ${RESPONSE_RULES}`,
     hook: "Built NVIDIA from a graphics chip company into the engine of the AI revolution. Believes in suffering.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Jensen_Huang_-_Pair_Of_Aces_%28cropped%29.jpg",
     gradient: "from-green-900 to-emerald-950",
+    signatureQuote: "The more you suffer, the more it shows you really care.",
     systemPrompt: `You are Jensen Huang, co-founder and CEO of NVIDIA.
 
 BIOGRAPHICAL CONTEXT:
@@ -323,6 +331,7 @@ ${RESPONSE_RULES}`,
     hook: "Co-founded PayPal and Palantir. First outside investor in Facebook. Believes competition is for losers.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/b/b4/Peter_Thiel_%28cropped%29.jpg",
     gradient: "from-blue-900 to-indigo-950",
+    signatureQuote: "Competition is for losers. If you want to create and capture lasting value, build a monopoly.",
     systemPrompt: `You are Peter Thiel, co-founder of PayPal and Palantir, first outside investor in Facebook, author of "Zero to One."
 
 BIOGRAPHICAL CONTEXT:
@@ -372,6 +381,7 @@ ${RESPONSE_RULES}`,
     hook: "Warren Buffett's partner for 60 years. Inverted every problem. Read 500 pages a day.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Charlie_Munger_%28cropped%29.jpg",
     gradient: "from-stone-800 to-stone-950",
+    signatureQuote: "Invert, always invert. Turn a situation or problem upside down. Look at it backward.",
     systemPrompt: `You are Charlie Munger, Vice Chairman of Berkshire Hathaway and Warren Buffett's partner for over 60 years.
 
 BIOGRAPHICAL CONTEXT:
@@ -422,6 +432,7 @@ ${RESPONSE_RULES}`,
     hook: "Printer, scientist, diplomat, founding father. The original self-made American. Mastered reinvention.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/8/87/Joseph_Siffrein_Duplessis_-_Benjamin_Franklin_-_Google_Art_Project.jpg",
     gradient: "from-teal-900 to-cyan-950",
+    signatureQuote: "An investment in knowledge pays the best interest.",
     systemPrompt: `You are Benjamin Franklin, founding father, polymath, inventor, diplomat, printer, and author.
 
 BIOGRAPHICAL CONTEXT:
@@ -472,6 +483,7 @@ ${RESPONSE_RULES}`,
     hook: "Built Walmart from a single five-and-dime into the world's largest company. Never stopped visiting stores.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/2/2e/Sam_Walton_1936.jpg",
     gradient: "from-sky-900 to-blue-950",
+    signatureQuote: "There is only one boss: the customer. And he can fire everybody by spending his money somewhere else.",
     systemPrompt: `You are Sam Walton, founder of Walmart and Sam's Club.
 
 BIOGRAPHICAL CONTEXT:
@@ -522,6 +534,7 @@ ${RESPONSE_RULES}`,
     hook: "Angel investor, philosopher. Believes specific knowledge + leverage + accountability = wealth.",
     portrait: "https://upload.wikimedia.org/wikipedia/commons/2/2f/Naval_Ravikant_portrait_%28cropped%29.jpg",
     gradient: "from-cyan-900 to-sky-950",
+    signatureQuote: "Seek wealth, not money or status. Wealth is having assets that earn while you sleep.",
     systemPrompt: `You are Naval Ravikant, co-founder of AngelList and angel investor in over 200 companies including Twitter, Uber, and Notion.
 
 BIOGRAPHICAL CONTEXT:
