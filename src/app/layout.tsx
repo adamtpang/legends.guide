@@ -17,9 +17,9 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "legends.guide | Guidance from History's Legends",
+  title: "legends.guide | Guidance from Humanity's Legends",
   description:
-    "Guidance from history's legends. Deeply researched AI mentors grounded in real biographies — Rockefeller, Musk, Franklin, and more. Voice-enabled. Free to try.",
+    "Guidance from humanity's legends. Deeply researched AI mentors grounded in real biographies — Rockefeller, Musk, Franklin, and more. Voice-enabled. Free to try.",
   metadataBase: new URL("https://legends.guide"),
   icons: {
     icon: [
@@ -28,18 +28,18 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "legends.guide — Guidance from History's Legends",
+    title: "legends.guide — Guidance from Humanity's Legends",
     description:
-      "Guidance from history's legends. Deeply researched AI mentors. Free to try.",
+      "Guidance from humanity's legends. Deeply researched AI mentors. Free to try.",
     url: "https://legends.guide",
     siteName: "legends.guide",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "legends.guide — Guidance from History's Legends",
+    title: "legends.guide — Guidance from Humanity's Legends",
     description:
-      "Guidance from history's legends. Deeply researched AI mentors. Free to try.",
+      "Guidance from humanity's legends. Deeply researched AI mentors. Free to try.",
   },
 };
 
