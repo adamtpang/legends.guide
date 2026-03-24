@@ -44,7 +44,7 @@ export default function Home() {
             <AuthButton />
           </div>
           <h1 className="text-[26px] md:text-5xl font-serif font-medium leading-tight tracking-tight mb-4">
-            Guidance from history&apos;s legends.
+            Guidance from humanity&apos;s legends.
           </h1>
           <p className="text-warm-500 text-sm md:text-base">
             Describe what you&apos;re working through. We&apos;ll match you with
