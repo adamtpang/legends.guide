@@ -207,6 +207,7 @@ export default function ChatPage({
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
+      // Revoke old audio URL
       if (audioRef.current) {
         audioRef.current.pause();
       }
