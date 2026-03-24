@@ -43,6 +43,8 @@ export default function ChatPage({
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null);
+  const [canReplay, setCanReplay] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [wisdomQuote, setWisdomQuote] = useState<string | null>(null);
@@ -128,6 +130,7 @@ export default function ChatPage({
   const autoPlayTTS = useCallback(async (text: string) => {
     try {
       setIsSpeaking(true);
+      setCanReplay(false);
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,18 +141,31 @@ export default function ChatPage({
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
+      // Revoke old audio URL
       if (audioRef.current) {
         audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
+      }
+      if (lastAudioUrl) {
+        URL.revokeObjectURL(lastAudioUrl);
       }
 
+      setLastAudioUrl(url);
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onended = () => { setIsSpeaking(false); setCanReplay(true); };
+      audio.onerror = () => { setIsSpeaking(false); };
       await audio.play();
     } catch { setIsSpeaking(false); }
-  }, []);
+  }, [figureSlug, lastAudioUrl]);
+
+  const replayAudio = useCallback(() => {
+    if (lastAudioUrl && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+      setIsSpeaking(true);
+      setCanReplay(false);
+    }
+  }, [lastAudioUrl]);
 
   const stopSpeaking = useCallback(() => {
     if (audioRef.current) {
@@ -362,14 +378,15 @@ export default function ChatPage({
           </svg>
         </Link>
 
-        <AnimatePresence>
-          {isSpeaking && (
+        <AnimatePresence mode="wait">
+          {isSpeaking ? (
             <motion.button
+              key="speaking"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={stopSpeaking}
-              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2 hover:bg-black/50 transition-all"
+              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
             >
               <div className="flex items-end gap-[2px] h-3">
                 {[0, 1, 2, 3, 4].map((i) => (
@@ -378,15 +395,29 @@ export default function ChatPage({
               </div>
               <span className="text-xs text-white/80">Speaking</span>
             </motion.button>
-          )}
+          ) : canReplay ? (
+            <motion.button
+              key="replay"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={replayAudio}
+              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
+            >
+              <svg className="w-4 h-4 text-white/80" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span className="text-xs text-white/80">Listen again</span>
+            </motion.button>
+          ) : null}
         </AnimatePresence>
       </div>
 
       {/* Middle — portrait area / empty state */}
-      <div className="relative z-10 flex-1 flex flex-col">
+      <div className="relative z-10 flex-1 flex flex-col min-h-0">
         {!hasMessages ? (
           /* Empty state — name + profile stats + suggested questions over the portrait */
-          <div className="flex-1 flex flex-col justify-end px-6 pb-6">
+          <div className="flex-1 flex flex-col justify-end px-6 pb-6 overflow-y-auto">
             {/* Match reason banner */}
             {showReason && matchReason && (
               <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 mb-6 border border-white/10">
@@ -491,25 +522,26 @@ export default function ChatPage({
         </div>
       )}
 
-      {/* Input */}
-      <div className="relative z-10 px-5 pb-5 pt-2">
-        <div className="flex gap-3 max-w-2xl mx-auto">
+      {/* Input — mobile-optimized with safe area padding */}
+      <div className="relative z-10 px-4 pb-[env(safe-area-inset-bottom,20px)] pt-2">
+        <div className="flex gap-2 max-w-2xl mx-auto items-end">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={!session?.user ? "Sign in to start chatting..." : `Message ${figure.name}...`}
-            className="flex-1 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors"
+            className="flex-1 min-w-0 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-[16px] text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors leading-normal"
             rows={1}
             disabled={loading}
+            style={{ fontSize: "16px" }}
           />
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="bg-white text-ink-950 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 self-end"
+            className="bg-white text-ink-950 w-12 h-12 min-w-[48px] rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shrink-0"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
