@@ -35,6 +35,7 @@ export default function ChatPage({
   const figure = figures.find((f) => f.slug === figureSlug);
   const searchParams = useSearchParams();
   const matchReason = searchParams.get("reason");
+  const preloadedQuery = searchParams.get("q");
 
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -106,6 +107,15 @@ export default function ChatPage({
     inputRef.current?.focus();
   }, []);
 
+  // Auto-send preloaded query from the matcher
+  const preloadSent = useRef(false);
+  useEffect(() => {
+    if (preloadedQuery && !preloadSent.current && session?.user) {
+      preloadSent.current = true;
+      sendQuickMessage(preloadedQuery);
+    }
+  }, [preloadedQuery, session]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -121,7 +131,7 @@ export default function ChatPage({
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, figureSlug }),
       });
       if (!res.ok) { setIsSpeaking(false); return; }
 
