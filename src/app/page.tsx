@@ -25,7 +25,7 @@ export default function Home() {
       });
       const data = await res.json();
       router.push(
-        `/chat/${data.slug}?reason=${encodeURIComponent(data.reason)}`
+        `/chat/${data.slug}?reason=${encodeURIComponent(data.reason)}&q=${encodeURIComponent(query.trim())}`
       );
     } catch {
       setMatching(false);
