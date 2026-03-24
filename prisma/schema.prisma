@@ -16,6 +16,7 @@ model User {
   credits       Int       @default(10)
   accounts      Account[]
   sessions      Session[]
+  feedbacks     Feedback[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -44,4 +45,17 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  userId     String
+  figureSlug String
+  rating     Int      // 1-5
+  comment    String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([figureSlug])
+  @@index([userId])
 }
