@@ -386,67 +386,13 @@ export default function ChatPage({
         </div>
       )}
 
-      {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-2 shrink-0">
+      {/* Top bar - just back button */}
+      <div className="relative z-10 flex items-center px-4 pt-[max(12px,env(safe-area-inset-top))] pb-2 shrink-0">
         <Link href="/" className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/50 transition-all">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </Link>
-
-        <AnimatePresence mode="wait">
-          {isSpeaking ? (
-            <motion.div
-              key="speaking"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex items-center gap-1"
-            >
-              <button
-                onClick={stopSpeaking}
-                className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
-              >
-                <div className="flex items-end gap-[2px] h-3">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="w-[2px] bg-white rounded-full waveform-bar" style={{ height: "100%", animationDelay: `${i * 0.15}s` }} />
-                  ))}
-                </div>
-                <span className="text-xs text-white/80">Speaking</span>
-              </button>
-              <button
-                onClick={cycleSpeed}
-                className="bg-black/30 backdrop-blur-sm rounded-full px-3 py-2.5 hover:bg-black/50 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
-              >
-                <span className="text-xs text-white/80 font-medium">{playbackSpeed}x</span>
-              </button>
-            </motion.div>
-          ) : canReplay ? (
-            <motion.div
-              key="replay"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex items-center gap-1"
-            >
-              <button
-                onClick={replayAudio}
-                className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
-              >
-                <svg className="w-4 h-4 text-white/80" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <span className="text-xs text-white/80">Listen again</span>
-              </button>
-              <button
-                onClick={cycleSpeed}
-                className="bg-black/30 backdrop-blur-sm rounded-full px-3 py-2.5 hover:bg-black/50 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
-              >
-                <span className="text-xs text-white/80 font-medium">{playbackSpeed}x</span>
-              </button>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
       </div>
 
       {/* Middle content area */}
@@ -581,8 +527,43 @@ export default function ChatPage({
         </div>
       )}
 
-      {/* Input area - mobile safe */}
+      {/* Input area + audio controls - mobile safe */}
       <div className="relative z-10 px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-1 shrink-0">
+        {/* Audio controls row - appears when speaking or can replay */}
+        {(isSpeaking || canReplay) && (
+          <div className="max-w-2xl mx-auto flex items-center justify-center gap-2 pb-2">
+            {isSpeaking ? (
+              <button
+                onClick={stopSpeaking}
+                className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5 hover:bg-white/20 transition-all"
+              >
+                <div className="flex items-end gap-[2px] h-3">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="w-[2px] bg-white rounded-full waveform-bar" style={{ height: "100%", animationDelay: `${i * 0.15}s` }} />
+                  ))}
+                </div>
+                <span className="text-[11px] text-white/70">Pause</span>
+              </button>
+            ) : (
+              <button
+                onClick={replayAudio}
+                className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5 hover:bg-white/20 transition-all"
+              >
+                <svg className="w-3.5 h-3.5 text-white/70" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span className="text-[11px] text-white/70">Listen again</span>
+              </button>
+            )}
+            <button
+              onClick={cycleSpeed}
+              className="bg-white/10 backdrop-blur-sm rounded-full px-2.5 py-1.5 hover:bg-white/20 transition-all"
+            >
+              <span className="text-[11px] text-white/70 font-medium">{playbackSpeed}x</span>
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2 max-w-2xl mx-auto items-end">
           <textarea
             ref={inputRef}
