@@ -491,25 +491,26 @@ export default function ChatPage({
         </div>
       )}
 
-      {/* Input */}
-      <div className="relative z-10 px-5 pb-5 pt-2">
-        <div className="flex gap-3 max-w-2xl mx-auto">
+      {/* Input — mobile-optimized with safe area padding */}
+      <div className="relative z-10 px-4 pb-[env(safe-area-inset-bottom,20px)] pt-2">
+        <div className="flex gap-2 max-w-2xl mx-auto items-end">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={!session?.user ? "Sign in to start chatting..." : `Message ${figure.name}...`}
-            className="flex-1 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors"
+            className="flex-1 min-w-0 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-[16px] text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors leading-normal"
             rows={1}
             disabled={loading}
+            style={{ fontSize: "16px" }}
           />
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="bg-white text-ink-950 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 self-end"
+            className="bg-white text-ink-950 w-12 h-12 min-w-[48px] rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shrink-0"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>

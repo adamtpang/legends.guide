@@ -16,6 +16,12 @@ const playfair = Playfair_Display({
   weight: ["400", "500", "600", "700"],
 });
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
+};
+
 export const metadata: Metadata = {
   title: "legends.guide | Guidance from Humanity's Legends",
   description:
