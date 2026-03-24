@@ -26,6 +26,30 @@ function parseCitations(text: string): { body: string; citations: string[] } {
   return { body, citations };
 }
 
+function parseFollowups(text: string): { body: string; followups: string[] } {
+  const followupRegex = /\[FOLLOWUP:\s*([^\]]+)\]/;
+  const match = text.match(followupRegex);
+  const followups: string[] = [];
+  if (match) {
+    const parts = match[1].split("|").map((s) => s.trim()).filter(Boolean);
+    followups.push(...parts);
+  }
+  const body = text.replace(followupRegex, "").trim();
+  return { body, followups };
+}
+
+function cleanResponse(text: string): { displayText: string; ttsText: string; citations: string[]; followups: string[] } {
+  // Extract citations
+  const { body: noCitations, citations } = parseCitations(text);
+  // Extract followups
+  const { body: cleanBody, followups } = parseFollowups(noCitations);
+  // Remove emdashes that slipped through
+  const displayText = cleanBody.replace(/\u2014/g, ",").replace(/\u2013/g, ",");
+  // TTS text: no citations, no followups, no emdashes
+  const ttsText = displayText;
+  return { displayText, ttsText, citations, followups };
+}
+
 export default function ChatPage({
   params,
 }: {
@@ -37,7 +61,7 @@ export default function ChatPage({
   const matchReason = searchParams.get("reason");
   const preloadedQuery = searchParams.get("q");
 
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,12 +70,14 @@ export default function ChatPage({
   const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null);
   const [canReplay, setCanReplay] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
+  const [anonCredits, setAnonCredits] = useState<number>(10);
   const [showPaywall, setShowPaywall] = useState(false);
   const [wisdomQuote, setWisdomQuote] = useState<string | null>(null);
   const [showWisdomCard, setShowWisdomCard] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [showReason, setShowReason] = useState(!!matchReason);
+  const [followups, setFollowups] = useState<string[]>([]);
   const wisdomCardShownRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -59,12 +85,51 @@ export default function ChatPage({
 
   const hasMessages = messages.length > 0 || !!streamingContent;
 
+  // Load anonymous credits from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined" && !session?.user) {
+      const stored = localStorage.getItem("legends_anon_credits");
+      if (stored !== null) {
+        setAnonCredits(parseInt(stored, 10));
+      }
+    }
+  }, [session]);
+
+  // Get effective credit count
+  const effectiveCredits = session?.user ? credits : anonCredits;
+
+  // Decrement credits
+  const decrementCredits = useCallback(async () => {
+    if (session?.user) {
+      const res = await fetch("/api/credits", { method: "POST" });
+      const data = await res.json();
+      if (data.credits !== undefined) {
+        setCredits(data.credits);
+        if (data.credits === 0 && !feedbackGiven) {
+          setShowFeedback(true);
+        }
+      }
+    } else {
+      // Anonymous user: use localStorage
+      setAnonCredits((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("legends_anon_credits", String(next));
+        }
+        if (next === 0) {
+          // Prompt sign-in when anonymous credits run out
+          setTimeout(() => signIn("google"), 500);
+        }
+        return next;
+      });
+    }
+  }, [session, feedbackGiven]);
+
   // Extract a shareable quote after 5+ exchanges (10 messages)
   const maybeExtractQuote = useCallback(async (allMessages: Message[]) => {
     if (wisdomCardShownRef.current) return;
-    if (allMessages.length < 10) return; // 5 exchanges = 10 messages
+    if (allMessages.length < 10) return;
 
-    // Check localStorage
     const storageKey = `wisdom_shown_${figureSlug}`;
     if (typeof window !== "undefined" && localStorage.getItem(storageKey)) return;
 
@@ -92,7 +157,7 @@ export default function ChatPage({
     } catch { /* silently fail */ }
   }, [figureSlug, figure?.name, figure?.era]);
 
-  // Fetch credits on mount and when session changes
+  // Fetch credits on mount
   useEffect(() => {
     if (session?.user) {
       fetch("/api/credits").then(r => r.json()).then(data => {
@@ -112,11 +177,12 @@ export default function ChatPage({
   // Auto-send preloaded query from the matcher
   const preloadSent = useRef(false);
   useEffect(() => {
-    if (preloadedQuery && !preloadSent.current && session?.user) {
+    if (preloadedQuery && !preloadSent.current && sessionStatus !== "loading") {
       preloadSent.current = true;
-      sendQuickMessage(preloadedQuery);
+      // Small delay to ensure component is ready
+      setTimeout(() => sendQuickMessage(preloadedQuery), 300);
     }
-  }, [preloadedQuery, session]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [preloadedQuery, sessionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     return () => {
@@ -141,7 +207,6 @@ export default function ChatPage({
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
-      // Revoke old audio URL
       if (audioRef.current) {
         audioRef.current.pause();
       }
@@ -153,28 +218,31 @@ export default function ChatPage({
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => { setIsSpeaking(false); setCanReplay(true); };
-      audio.onerror = () => { setIsSpeaking(false); };
+      audio.onerror = () => { setIsSpeaking(false); setCanReplay(true); };
       await audio.play();
     } catch { setIsSpeaking(false); }
   }, [figureSlug, lastAudioUrl]);
 
   const replayAudio = useCallback(() => {
-    if (lastAudioUrl && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
+    if (lastAudioUrl) {
+      const audio = new Audio(lastAudioUrl);
+      audioRef.current = audio;
+      audio.onended = () => { setIsSpeaking(false); setCanReplay(true); };
+      audio.onerror = () => { setIsSpeaking(false); setCanReplay(true); };
       setIsSpeaking(true);
       setCanReplay(false);
+      audio.play();
     }
   }, [lastAudioUrl]);
 
   const stopSpeaking = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
-      URL.revokeObjectURL(audioRef.current.src);
       audioRef.current = null;
     }
     setIsSpeaking(false);
-  }, []);
+    setCanReplay(!!lastAudioUrl);
+  }, [lastAudioUrl]);
 
   if (!figure) {
     return (
@@ -184,27 +252,11 @@ export default function ChatPage({
     );
   }
 
-  const sendMessage = async () => {
-    const trimmed = input.trim();
-    if (!trimmed || loading) return;
-
-    // Check if user needs to sign in or buy credits
-    if (!session?.user) {
-      signIn("google");
-      return;
-    }
-    if (credits !== null && credits <= 0) {
-      setShowPaywall(true);
-      return;
-    }
-    stopSpeaking();
-
-    const userMessage: Message = { role: "user", content: trimmed };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInput("");
+  const handleStream = async (newMessages: Message[]) => {
     setLoading(true);
     setStreamingContent("");
+    setFollowups([]);
+    stopSpeaking();
 
     try {
       const res = await fetch("/api/chat", {
@@ -237,26 +289,20 @@ export default function ChatPage({
         }
       }
 
-      const finalMessages = [...newMessages, { role: "assistant" as const, content: accumulated }];
+      const { displayText, ttsText, citations: newCitations, followups: newFollowups } = cleanResponse(accumulated);
+      const assistantMessage = { role: "assistant" as const, content: displayText };
+      const finalMessages = [...newMessages, assistantMessage];
       setMessages(finalMessages);
       setStreamingContent("");
+      setFollowups(newFollowups);
 
       // Decrement credit
-      fetch("/api/credits", { method: "POST" }).then(r => r.json()).then(data => {
-        if (data.credits !== undefined) {
-          setCredits(data.credits);
-          if (data.credits === 0 && !feedbackGiven) {
-            setShowFeedback(true);
-          }
-        }
-      });
+      decrementCredits();
 
-      if (accumulated && !accumulated.startsWith("I cannot respond")) {
-        const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
-        autoPlayTTS(cleanText);
+      if (ttsText && !ttsText.startsWith("I cannot respond")) {
+        autoPlayTTS(ttsText);
       }
 
-      // Trigger wisdom card after enough exchanges
       maybeExtractQuote(finalMessages);
     } catch {
       setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Try again." }]);
@@ -266,95 +312,52 @@ export default function ChatPage({
     }
   };
 
-  const sendQuickMessage = (text: string) => {
-    // Check if user needs to sign in or buy credits
-    if (!session?.user) {
-      signIn("google");
-      return;
-    }
-    if (credits !== null && credits <= 0) {
-      setShowPaywall(true);
-      return;
-    }
-    setInput(text);
-    setTimeout(() => {
-      const userMessage: Message = { role: "user", content: text };
-      const newMessages = [userMessage];
-      setMessages(newMessages);
-      setInput("");
-      setLoading(true);
-      setStreamingContent("");
-      stopSpeaking();
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
 
-      fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ figure: figureSlug, messages: newMessages }),
-      }).then(async (res) => {
-        if (!res.ok) throw new Error("Failed");
-        const reader = res.body?.getReader();
-        if (!reader) throw new Error("No reader");
-        const decoder = new TextDecoder();
-        let accumulated = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          for (const line of chunk.split("\n")) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data === "[DONE]") continue;
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.error) { accumulated = "I cannot respond right now."; setStreamingContent(accumulated); break; }
-                if (parsed.text) { accumulated += parsed.text; setStreamingContent(accumulated); }
-              } catch { /* skip */ }
-            }
-          }
-        }
-        const finalMessages = [...newMessages, { role: "assistant" as const, content: accumulated }];
-        setMessages(finalMessages);
-        setStreamingContent("");
-        // Decrement credit
-        fetch("/api/credits", { method: "POST" }).then(r => r.json()).then(data => {
-          if (data.credits !== undefined) {
-            setCredits(data.credits);
-            if (data.credits === 0 && !feedbackGiven) {
-              setShowFeedback(true);
-            }
-          }
-        });
-        if (accumulated && !accumulated.startsWith("I cannot respond")) {
-          const cleanText = accumulated.replace(/\[Source:\s*"[^"]+"\s*by\s*[^\]]+\]/g, "").trim();
-          autoPlayTTS(cleanText);
-        }
-        // Trigger wisdom card after enough exchanges
-        maybeExtractQuote(finalMessages);
-      }).catch(() => {
-        setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Try again." }]);
-        setStreamingContent("");
-      }).finally(() => {
-        setLoading(false);
-      });
-    }, 0);
+    // Check credits
+    if (effectiveCredits !== null && effectiveCredits <= 0) {
+      if (!session?.user) {
+        signIn("google");
+      } else {
+        setShowPaywall(true);
+      }
+      return;
+    }
+
+    const userMessage: Message = { role: "user", content: trimmed };
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput("");
+    handleStream(newMessages);
+  };
+
+  const sendQuickMessage = (text: string) => {
+    // Check credits
+    if (effectiveCredits !== null && effectiveCredits <= 0) {
+      if (!session?.user) {
+        signIn("google");
+      } else {
+        setShowPaywall(true);
+      }
+      return;
+    }
+
+    const userMessage: Message = { role: "user", content: text };
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput("");
+    handleStream(newMessages);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  // Get the latest assistant message for display
-  const latestAssistant = streamingContent
-    || (messages.length > 0 && messages[messages.length - 1].role === "assistant"
-      ? messages[messages.length - 1].content
-      : "");
-  const { body: displayText, citations } = latestAssistant && !streamingContent
-    ? parseCitations(latestAssistant)
-    : { body: latestAssistant, citations: [] };
-
   return (
-    <div className="h-screen bg-ink-950 text-warm-100 flex flex-col overflow-hidden relative">
-      {/* Full-bleed portrait background */}
+    <div className="h-[100dvh] bg-ink-950 text-warm-100 flex flex-col overflow-hidden relative">
+      {/* Full-bleed portrait background - always visible */}
       {figure.portrait && (
         <div className="absolute inset-0 z-0">
           <Image
@@ -365,13 +368,12 @@ export default function ChatPage({
             sizes="100vw"
             priority
           />
-          {/* Gradient overlay — heavier at bottom for text readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/70 to-ink-950/30" />
         </div>
       )}
 
       {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-5 pt-5 pb-3">
+      <div className="relative z-10 flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-2 shrink-0">
         <Link href="/" className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/50 transition-all">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -413,26 +415,25 @@ export default function ChatPage({
         </AnimatePresence>
       </div>
 
-      {/* Middle — portrait area / empty state */}
+      {/* Middle content area */}
       <div className="relative z-10 flex-1 flex flex-col min-h-0">
         {!hasMessages ? (
-          /* Empty state — name + profile stats + suggested questions over the portrait */
-          <div className="flex-1 flex flex-col justify-end px-6 pb-6 overflow-y-auto">
-            {/* Match reason banner */}
+          /* Empty state */
+          <div className="flex-1 flex flex-col justify-end px-4 pb-4 overflow-y-auto">
             {showReason && matchReason && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 mb-6 border border-white/10">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 mb-4 border border-white/10">
                 <p className="text-sm text-white/80 italic">{matchReason}</p>
               </div>
             )}
 
-            <h1 className="text-3xl md:text-4xl font-serif font-medium text-white mb-1">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-white mb-1">
               {figure.name}
             </h1>
-            <p className="text-white/50 text-sm mb-2">{figure.era}</p>
-            <p className="text-white/60 text-sm italic mb-5">{figure.knownFor}</p>
+            <p className="text-white/50 text-sm mb-1">{figure.era}</p>
+            <p className="text-white/60 text-sm italic mb-4">{figure.knownFor}</p>
 
             {/* Stats pills */}
-            <div className="flex flex-wrap gap-2 mb-6">
+            <div className="flex flex-wrap gap-1.5 mb-4">
               {figure.stats.map((s, i) => (
                 <div key={i} className="bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs text-white/70">
                   <span className="text-white/40">{s.label}</span>{" "}
@@ -449,7 +450,7 @@ export default function ChatPage({
                     setShowReason(false);
                     sendQuickMessage(q);
                   }}
-                  className="text-sm text-white/80 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-white/20 transition-all"
+                  className="text-sm text-white/80 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-white/20 transition-all min-h-[44px]"
                 >
                   {q}
                 </button>
@@ -457,34 +458,48 @@ export default function ChatPage({
             </div>
           </div>
         ) : (
-          /* Conversation — scrollable messages over blurred portrait */
-          <div className="flex-1 overflow-y-auto px-5 py-4 chat-scroll">
-            <div className="max-w-2xl mx-auto space-y-4">
+          /* Conversation - scrollable */
+          <div className="flex-1 overflow-y-auto px-4 py-3 chat-scroll">
+            <div className="max-w-2xl mx-auto space-y-3">
               {messages.map((msg, i) => {
                 if (msg.role === "user") {
                   return (
                     <div key={i} className="flex justify-end">
-                      <div className="max-w-[80%] bg-white/15 backdrop-blur-sm rounded-2xl rounded-br-sm px-4 py-3">
-                        <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      <div className="max-w-[85%] bg-white/15 backdrop-blur-sm rounded-2xl rounded-br-sm px-4 py-3">
+                        <p className="text-sm text-white leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                       </div>
                     </div>
                   );
                 }
-                const { body } = parseCitations(msg.content);
+                const { body, citations: msgCitations } = parseCitations(msg.content);
+                const { body: cleanBody } = parseFollowups(body);
                 const isLatest = i === messages.length - 1;
                 return (
-                  <div key={i} className="flex justify-start">
-                    <div className={`max-w-[85%] ${isLatest ? "" : "opacity-60"}`}>
-                      <p className="text-[15px] text-white leading-[1.8] whitespace-pre-wrap">{body}</p>
+                  <div key={i} className="flex flex-col justify-start gap-1">
+                    <div className={`max-w-[90%] ${isLatest ? "" : "opacity-60"}`}>
+                      <p className="text-[15px] text-white leading-[1.8] whitespace-pre-wrap break-words">{cleanBody}</p>
                     </div>
+                    {/* Citations styled differently */}
+                    {msgCitations.length > 0 && (
+                      <div className="max-w-[90%] mt-1">
+                        {msgCitations.map((c, ci) => (
+                          <p key={ci} className="text-[11px] text-white/30 italic flex items-center gap-1">
+                            <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            {c}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
 
               {streamingContent && (
                 <div className="flex justify-start">
-                  <div className="max-w-[85%]">
-                    <p className="text-[15px] text-white leading-[1.8] whitespace-pre-wrap">
+                  <div className="max-w-[90%]">
+                    <p className="text-[15px] text-white leading-[1.8] whitespace-pre-wrap break-words">
                       {streamingContent}
                       <span className="inline-block w-[2px] h-[16px] bg-white/60 ml-0.5 animate-pulse align-text-bottom" />
                     </p>
@@ -506,31 +521,41 @@ export default function ChatPage({
         )}
       </div>
 
-      {/* Citations — subtle bar above input */}
-      {citations.length > 0 && !streamingContent && (
-        <div className="relative z-10 px-6 py-2 bg-black/20 backdrop-blur-sm">
-          <p className="text-[10px] text-white/30 uppercase tracking-widest">
-            Source: <span className="italic">{citations[0]}</span>
-          </p>
+      {/* Follow-up suggestions */}
+      {followups.length > 0 && !loading && hasMessages && (
+        <div className="relative z-10 px-4 py-2 shrink-0">
+          <div className="max-w-2xl mx-auto flex flex-wrap gap-1.5">
+            {followups.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => sendQuickMessage(q)}
+                className="text-xs text-white/70 bg-white/10 backdrop-blur-sm rounded-full px-3 py-2 hover:bg-white/20 transition-all min-h-[36px] text-left"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Credits indicator */}
-      {session?.user && credits !== null && (
-        <div className="relative z-10 px-5 py-1 flex justify-center">
-          <span className="text-[10px] text-white/30">{credits} messages remaining</span>
+      {effectiveCredits !== null && (
+        <div className="relative z-10 px-4 py-1 flex justify-center shrink-0">
+          <span className="text-[10px] text-white/30">
+            {effectiveCredits} messages remaining{!session?.user ? " (free trial)" : ""}
+          </span>
         </div>
       )}
 
-      {/* Input — mobile-optimized with safe area padding */}
-      <div className="relative z-10 px-4 pb-[env(safe-area-inset-bottom,20px)] pt-2">
+      {/* Input area - mobile safe */}
+      <div className="relative z-10 px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-1 shrink-0">
         <div className="flex gap-2 max-w-2xl mx-auto items-end">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={!session?.user ? "Sign in to start chatting..." : `Message ${figure.name}...`}
+            placeholder={`Ask ${figure.name}...`}
             className="flex-1 min-w-0 bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-3 text-[16px] text-white placeholder-white/30 resize-none focus:outline-none focus:border-white/25 transition-colors leading-normal"
             rows={1}
             disabled={loading}
@@ -539,7 +564,7 @@ export default function ChatPage({
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="bg-white text-ink-950 w-12 h-12 min-w-[48px] rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shrink-0"
+            className="bg-white text-ink-950 w-12 h-12 min-w-[48px] min-h-[48px] rounded-full flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shrink-0"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M12 5l7 7-7 7" />
@@ -562,7 +587,7 @@ export default function ChatPage({
         )}
       </AnimatePresence>
 
-      {/* Feedback modal — shows before paywall when credits hit 0 */}
+      {/* Feedback modal */}
       {showFeedback && figure && (
         <FeedbackModal
           figureSlug={figure.slug}
@@ -582,27 +607,27 @@ export default function ChatPage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+            className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-8 max-w-sm w-full text-center"
+              className="bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full text-center"
             >
-              <h2 className="text-2xl font-serif font-medium text-ink-950 mb-2">
+              <h2 className="text-xl sm:text-2xl font-serif font-medium text-ink-950 mb-2">
                 Keep the conversation going
               </h2>
               <p className="text-warm-400 text-sm mb-6">
-                You&apos;ve used all your free messages. Get 100 more to continue learning from history&apos;s greatest.
+                You&apos;ve used all your free messages. Get 100 more to continue learning from humanity&apos;s greatest.
               </p>
               <a
                 href="https://buy.stripe.com/7sY4gz0wy7cFeUM1q9aMU0i"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full bg-ink-950 text-white rounded-full py-3 px-6 text-sm font-medium hover:bg-ink-800 transition-colors mb-3"
+                className="block w-full bg-ink-950 text-white rounded-full py-3 px-6 text-sm font-medium hover:bg-ink-800 transition-colors mb-3 min-h-[48px] flex items-center justify-center"
               >
-                100 messages — $10
+                100 messages for $10
               </a>
               <button
                 onClick={() => setShowPaywall(false)}
@@ -621,7 +646,7 @@ export default function ChatPage({
 function getSuggestedQuestions(slug: string): string[] {
   const questions: Record<string, string[]> = {
     "john-d-rockefeller": [
-      "How would you cut costs?",
+      "How do I make my first dollar?",
       "What did Ledger A teach you?",
       "Turn a crisis into opportunity?",
     ],
@@ -643,7 +668,7 @@ function getSuggestedQuestions(slug: string): string[] {
     "alexander-the-great": [
       "How do you lead from the front?",
       "What did Aristotle teach you?",
-      "How did you conquer the Persian Empire?",
+      "How did you conquer Persia?",
     ],
     "lee-kuan-yew": [
       "How did you build Singapore?",
