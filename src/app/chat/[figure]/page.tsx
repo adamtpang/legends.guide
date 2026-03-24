@@ -43,6 +43,8 @@ export default function ChatPage({
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null);
+  const [canReplay, setCanReplay] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [wisdomQuote, setWisdomQuote] = useState<string | null>(null);
@@ -128,6 +130,7 @@ export default function ChatPage({
   const autoPlayTTS = useCallback(async (text: string) => {
     try {
       setIsSpeaking(true);
+      setCanReplay(false);
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,18 +141,31 @@ export default function ChatPage({
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
+      // Revoke old audio URL
       if (audioRef.current) {
         audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
+      }
+      if (lastAudioUrl) {
+        URL.revokeObjectURL(lastAudioUrl);
       }
 
+      setLastAudioUrl(url);
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onended = () => { setIsSpeaking(false); setCanReplay(true); };
+      audio.onerror = () => { setIsSpeaking(false); };
       await audio.play();
     } catch { setIsSpeaking(false); }
-  }, []);
+  }, [figureSlug, lastAudioUrl]);
+
+  const replayAudio = useCallback(() => {
+    if (lastAudioUrl && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+      setIsSpeaking(true);
+      setCanReplay(false);
+    }
+  }, [lastAudioUrl]);
 
   const stopSpeaking = useCallback(() => {
     if (audioRef.current) {
@@ -362,14 +378,15 @@ export default function ChatPage({
           </svg>
         </Link>
 
-        <AnimatePresence>
-          {isSpeaking && (
+        <AnimatePresence mode="wait">
+          {isSpeaking ? (
             <motion.button
+              key="speaking"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={stopSpeaking}
-              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2 hover:bg-black/50 transition-all"
+              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
             >
               <div className="flex items-end gap-[2px] h-3">
                 {[0, 1, 2, 3, 4].map((i) => (
@@ -378,15 +395,29 @@ export default function ChatPage({
               </div>
               <span className="text-xs text-white/80">Speaking</span>
             </motion.button>
-          )}
+          ) : canReplay ? (
+            <motion.button
+              key="replay"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={replayAudio}
+              className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2.5 hover:bg-black/50 transition-all min-h-[44px]"
+            >
+              <svg className="w-4 h-4 text-white/80" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span className="text-xs text-white/80">Listen again</span>
+            </motion.button>
+          ) : null}
         </AnimatePresence>
       </div>
 
       {/* Middle — portrait area / empty state */}
-      <div className="relative z-10 flex-1 flex flex-col">
+      <div className="relative z-10 flex-1 flex flex-col min-h-0">
         {!hasMessages ? (
           /* Empty state — name + profile stats + suggested questions over the portrait */
-          <div className="flex-1 flex flex-col justify-end px-6 pb-6">
+          <div className="flex-1 flex flex-col justify-end px-6 pb-6 overflow-y-auto">
             {/* Match reason banner */}
             {showReason && matchReason && (
               <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 mb-6 border border-white/10">
