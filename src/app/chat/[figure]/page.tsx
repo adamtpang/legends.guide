@@ -378,7 +378,7 @@ export default function ChatPage({
             src={figure.portrait}
             alt={figure.name}
             fill
-            className={`object-cover object-top transition-all duration-1000 ${hasMessages ? "scale-105 blur-[2px]" : "scale-100"}`}
+            className={`object-cover object-[center_20%] transition-all duration-1000 ${hasMessages ? "scale-105 blur-[2px]" : "scale-100"}`}
             sizes="100vw"
             priority
           />
