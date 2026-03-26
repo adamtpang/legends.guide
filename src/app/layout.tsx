@@ -43,6 +43,7 @@ export const metadata: Metadata = {
       { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],
+    apple: "/icon-192.png",
   },
   openGraph: {
     title: "legends.guide | Talk to History's Greatest Minds",
