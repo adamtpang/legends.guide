@@ -3,12 +3,20 @@
 import { figures } from "@/lib/figures";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthButton from "@/components/AuthButton";
 import AmbientMusic from "@/components/AmbientMusic";
 
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const [query, setQuery] = useState("");
   const [matching, setMatching] = useState(false);
   const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
