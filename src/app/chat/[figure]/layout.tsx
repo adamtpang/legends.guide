@@ -17,19 +17,22 @@ export async function generateMetadata({
 
   return {
     title: `Talk to ${figure.name} | legends.guide`,
-    description: `Have a real conversation with ${figure.name}. AI-powered wisdom from history's greatest minds.`,
+    description: `Chat with ${figure.name} (${figure.era}). ${figure.knownFor}. AI mentor grounded in real biographies and primary sources.`,
     openGraph: {
-      title: `Talk to ${figure.name} — legends.guide`,
-      description: `Have a real conversation with ${figure.name}. AI-powered wisdom from history's greatest minds.`,
+      title: `Talk to ${figure.name} | legends.guide`,
+      description: `Chat with ${figure.name}. ${figure.knownFor}. AI-powered wisdom from real biographies.`,
       url: `https://legends.guide/chat/${figure.slug}`,
       images: [{ url: ogImageUrl, width: 1200, height: 630 }],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `Talk to ${figure.name} — legends.guide`,
-      description: `Have a real conversation with ${figure.name}. AI-powered wisdom from history's greatest minds.`,
+      title: `Talk to ${figure.name} | legends.guide`,
+      description: `Chat with ${figure.name}. ${figure.knownFor}. AI-powered wisdom from real biographies.`,
       images: [ogImageUrl],
+    },
+    alternates: {
+      canonical: `https://legends.guide/chat/${figure.slug}`,
     },
   };
 }

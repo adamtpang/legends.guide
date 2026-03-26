@@ -23,29 +23,44 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "legends.guide | Guidance from Humanity's Legends",
+  title: "legends.guide | Talk to History's Greatest Minds",
   description:
-    "Guidance from humanity's legends. Deeply researched AI mentors grounded in real biographies — Rockefeller, Musk, Franklin, and more. Voice-enabled. Free to try.",
+    "Get personal advice from Rockefeller, Benjamin Franklin, Elon Musk, Alexander the Great, and more. AI mentors grounded in real biographies and primary sources. Voice-enabled. Free to try.",
   metadataBase: new URL("https://legends.guide"),
+  keywords: [
+    "AI mentorship",
+    "talk to historical figures",
+    "Rockefeller advice",
+    "Benjamin Franklin wisdom",
+    "AI life coach",
+    "historical mentors",
+    "biography-based AI",
+    "legends guide",
+    "chat with history",
+  ],
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],
+    apple: "/icon-192.png",
   },
   openGraph: {
-    title: "legends.guide — Guidance from Humanity's Legends",
+    title: "legends.guide | Talk to History's Greatest Minds",
     description:
-      "Guidance from humanity's legends. Deeply researched AI mentors. Free to try.",
+      "Get personal advice from Rockefeller, Franklin, Musk, and more. AI mentors grounded in real biographies. Free to try.",
     url: "https://legends.guide",
     siteName: "legends.guide",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "legends.guide — Guidance from Humanity's Legends",
+    title: "legends.guide | Talk to History's Greatest Minds",
     description:
-      "Guidance from humanity's legends. Deeply researched AI mentors. Free to try.",
+      "Get personal advice from Rockefeller, Franklin, Musk, and more. AI mentors grounded in real biographies. Free to try.",
+  },
+  alternates: {
+    canonical: "https://legends.guide",
   },
 };
 
@@ -60,6 +75,27 @@ export default function RootLayout({
       className={`${inter.variable} ${playfair.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              name: "legends.guide",
+              url: "https://legends.guide",
+              description:
+                "Get personal advice from history's greatest minds. AI mentors grounded in real biographies and primary sources.",
+              applicationCategory: "EducationalApplication",
+              operatingSystem: "Web",
+              offers: {
+                "@type": "Offer",
+                price: "0",
+                priceCurrency: "USD",
+                description: "25 free messages, then $10 for 100 messages",
+              },
+            }),
+          }}
+        />
         <PostHogProvider>
           {children}
         </PostHogProvider>

@@ -9,6 +9,8 @@ import { useSession, signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import WisdomCard from "@/components/WisdomCard";
 import FeedbackModal from "@/components/FeedbackModal";
+import AmbientMusic from "@/components/AmbientMusic";
+import ShareButton from "@/components/ShareButton";
 
 interface Message {
   role: "user" | "assistant";
@@ -70,7 +72,7 @@ export default function ChatPage({
   const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null);
   const [canReplay, setCanReplay] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
-  const [anonCredits, setAnonCredits] = useState<number>(10);
+  const [anonCredits, setAnonCredits] = useState<number>(25);
   const [showPaywall, setShowPaywall] = useState(false);
   const [wisdomQuote, setWisdomQuote] = useState<string | null>(null);
   const [showWisdomCard, setShowWisdomCard] = useState(false);
@@ -166,9 +168,15 @@ export default function ChatPage({
     }
   }, [session]);
 
+  // Only scroll when user sends a new message, not during streaming
+  const prevUserMsgCount = useRef(0);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
+    const userCount = messages.filter((m) => m.role === "user").length;
+    if (userCount > prevUserMsgCount.current) {
+      prevUserMsgCount.current = userCount;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -375,11 +383,14 @@ export default function ChatPage({
 
       {/* Top bar */}
       <div className="relative z-10 flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-2 shrink-0">
-        <Link href="/" className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/50 transition-all">
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/" className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/50 transition-all">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <AmbientMusic trackKey={figureSlug} className="text-white/60 hover:text-white/80" />
+        </div>
 
         <AnimatePresence mode="wait">
           {isSpeaking ? (
@@ -430,7 +441,7 @@ export default function ChatPage({
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-medium text-white mb-1">
               {figure.name}
             </h1>
-            <p className="text-white/50 text-sm mb-1">{figure.era}</p>
+            <p className="text-white/50 text-sm mb-1">{figure.era} &middot; {figure.location}</p>
             <p className="text-white/60 text-sm italic mb-4">{figure.knownFor}</p>
 
             {/* Stats pills */}
@@ -493,6 +504,13 @@ export default function ChatPage({
                         ))}
                       </div>
                     )}
+                    {/* Share button */}
+                    <ShareButton
+                      quote={cleanBody}
+                      figureName={figure.name}
+                      era={figure.era}
+                      figureColor={figure.color}
+                    />
                   </div>
                 );
               })}
@@ -624,8 +642,6 @@ export default function ChatPage({
               </p>
               <a
                 href="https://buy.stripe.com/7sY4gz0wy7cFeUM1q9aMU0i"
-                target="_blank"
-                rel="noopener noreferrer"
                 className="block w-full bg-ink-950 text-white rounded-full py-3 px-6 text-sm font-medium hover:bg-ink-800 transition-colors mb-3 min-h-[48px] flex items-center justify-center"
               >
                 100 messages for $10
@@ -655,11 +671,6 @@ function getSuggestedQuestions(slug: string): string[] {
       "How do you think from first principles?",
       "What was 2008 like for you?",
       "How do you compress timelines?",
-    ],
-    "peter-thiel": [
-      "How do I build a monopoly?",
-      "What's a contrarian truth?",
-      "Why is competition for losers?",
     ],
     "benjamin-franklin": [
       "How did you teach yourself to write?",
